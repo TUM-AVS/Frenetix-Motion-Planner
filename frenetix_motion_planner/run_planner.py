@@ -253,7 +253,7 @@ def run_planner(config, log_path, mod_path, use_cpp):
     # **************************
     # Evaluate results
     # **************************
-    if config.occlusion.use_occlusion_module and config.occlusion.evaluate_occ:
+    if config.occlusion.use_occlusion_module and config.occlusion.evaluate_occ and config.occlusion.show_occlusion_plot:
         # plot occlusion evaluation
         occlusion_module.occ_plot.final_evaluation_plot(crash)
 
