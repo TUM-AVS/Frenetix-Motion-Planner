@@ -10,7 +10,13 @@ The Repo provides a python-based and a C++-accelerated Motion Planner [Frenetix]
 
 # Occlusion-aware Motion Planning
 
-To try the Occlusion-Ware module, you can find the following readme script in [/frenetix_motion_planner/occlusion_planning/README.md](https://github.com/TUM-AVS/Frenetix-Motion-Planner/blob/master/frenetix_motion_planner/occlusion_planning/README.md).
+
+<img src="doc/images/pedestrians.png" alt="reactive-planner" width="600" />
+
+
+To try the Occlusion-Ware module, you can find the following readme script here:
+
+ * [frenetix_motion_planner/occlusion_planning/README.md](https://github.com/TUM-AVS/Frenetix-Motion-Planner/blob/master/frenetix_motion_planner/occlusion_planning/README.md).
 
 # Standard Planner Initialization
 
