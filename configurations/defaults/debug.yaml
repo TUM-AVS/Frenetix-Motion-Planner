@@ -1,0 +1,26 @@
+# show/save plots
+save_all_traj: False
+save_unweighted_costs: False
+log_risk: True # Doesn't work for ground_truth prediction!
+show_plots: False
+save_plots: True
+evaluation: False
+collision_report: True
+gif: False
+# plot vehicle position with x_y distance in meters. 0=Standard Plot
+plot_window_dyn: 25
+# draw obstacles with vehicle icons
+draw_icons: True
+# draw sampled trajectory set
+draw_traj_set: True
+
+kinematic_debug: True
+
+# Messages Logging
+# Options: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL
+msg_log_mode: INFO
+
+# use multiprocessing True/False
+multiproc: True
+# number of workers for multiprocessing
+num_workers: 6

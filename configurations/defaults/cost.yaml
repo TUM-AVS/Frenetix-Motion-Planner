@@ -1,0 +1,48 @@
+cost_weights:
+
+    acceleration: 0.0
+    jerk: 0.00
+    lateral_jerk: 0.05
+    longitudinal_jerk: 0.1
+    orientation_offset: 0.0
+    path_length: 0.0
+
+    lane_center_offset: 0.0
+    velocity_offset: 0.1
+    velocity: 0.1
+    distance_to_reference_path: 2.0
+    distance_to_obstacles: 0.2
+
+    prediction: 1
+    responsibility: 0
+
+external_cost_weights:
+    occ_pm: 0 # Occlusion Phantom Module (phantom pedestrian harm)
+    occ_um: 0 # Occlusion Uncertainty Module (distance to uncertainty map)
+    occ_ve: 0 # Occlusion Visibility Estimator (lateral adaption to increase visible area)
+
+#names:
+#  A: Acceleration
+#  J: Jerk
+#  Jlat: Lateral Jerk
+#  Jlon: Longitudinal Jerk
+#  O: Orientation Offset
+#  L: Path Length
+
+#  LC: Lane Center Offset
+#  V: Velocity Offset
+#  VC: Velocity Costs
+#  Vlon: Longitudinal Velocity Offset
+#  O: Orientation Offset
+#  DR: Distance to Reference Path
+#  DO: Distance to Obstacles
+
+#  P: Prediction
+#  R: Responsibility
+
+  # SA: Steering Angle
+  # SR: Steering Rate
+  # Y: Yaw Rate
+  # Vlon: Longitudinal Velocity Offset
+  # T: Time
+  # ID: Inverse Duration

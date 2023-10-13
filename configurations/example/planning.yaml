@@ -1,0 +1,9 @@
+# planner time step (in s)
+dt: 0.1
+# planning time horizon (in s)
+planning_horizon: 2.0
+# velocity threshold (in m/s) for switching to low velocity mode
+low_vel_mode_threshold: 2
+
+# emergency trajectory mode
+emergency_mode: "stopping"  # "stopping" or "min_risk" if None of both, "min_risk" is activated

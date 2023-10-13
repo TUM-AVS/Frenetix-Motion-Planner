@@ -1,0 +1,30 @@
+use_occlusion_module: True # Does not work in every combination, e.g. multiagent
+scope: 30 # "sensor_radius" uses sensor radius from prediction or custom number
+
+# phantom pedestrians (activate or deactivate the Occlusion Phantom Module (OPM))
+use_phantom_module: True
+create_real_pedestrians: [11] #select where to create a real pedestrian, leave empty if no real pedestrian shall be created
+max_harm: 0.2 # Set maximum harm Limit. Set to 1.0 to deactivate
+
+# visibility estimation (activate or deactivate the Occlusion Visibility Estimator (OVE))
+use_visibility_estimator: True
+
+# uncertainty map evaluation (activate or deactivate the Occlusion Uncertainty Map Evaluator (OUME))
+use_uncertainty_map_evaluator: True
+
+# show/save occlusion debug plots
+show_occlusion_plot: True # create Occlusion Plots and save them
+interactive_plot: False # Show Plot during runtime - might be slow
+plot_backend: "TkAgg" # Qt5Agg or TkAgg
+plot_window_dyn: 25 # plot vehicle position with x_y distance in meters
+
+# detailed plots
+plot_opm_traj: False # Plot relative trajectory costs of Phantom Module
+plot_opm_ped: True # Plot phantom pedestrians
+plot_oume_traj: False # Plot relative trajectory costs of UncertaintyMapEvaluator
+plot_oume_map: False # Plot uncertainty Map of UncertaintyMapEvaluator
+plot_ove_traj: False # Plot relative trajectory costs of VisibilityEstimator
+plot_ove_map: False # Plot uncertainty Map of VisibilityEstimator
+
+# create occlusion module evaluation plot (only evaluates phantom obstacle harm)
+evaluate_occ: False
