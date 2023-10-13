@@ -27,4 +27,4 @@ plot_ove_traj: False # Plot relative trajectory costs of VisibilityEstimator
 plot_ove_map: False # Plot uncertainty Map of VisibilityEstimator
 
 # create occlusion module evaluation plot (only evaluates phantom obstacle harm)
-evaluate_occ: False
+evaluate_occ: True
