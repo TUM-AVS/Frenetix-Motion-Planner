@@ -340,7 +340,8 @@ class OccPlot:
         # save plot
         plot_dir = os.path.join(self.log_path, "occlusion_plots")
         os.makedirs(plot_dir, exist_ok=True)
-        plt.savefig(f"{plot_dir}/{self.scenario_id}_{'Final_Evaluation'}.svg", format='svg', dpi=300)
+        plt.show()
+        # plt.savefig(f"{plot_dir}/{self.scenario_id}_{'Final_Evaluation'}.svg", format='svg', dpi=300)
 
         return
 
