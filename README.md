@@ -1,4 +1,5 @@
 [![DOI](https://zenodo.org/badge/700239470.svg)](https://zenodo.org/records/10078062)
+
 [![Linux](https://img.shields.io/badge/os-linux-blue.svg)](https://www.linux.org/)
 [![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/) [![Python 3.9](https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/release/python-390/)
 
@@ -6,7 +7,6 @@
 # Frenetix Motion Planner
 
 This repository includes a Frenet trajectory planning algorithm in the [CommonRoad](https://commonroad.in.tum.de/) scenario format.
-The trajectories are generated according to the sampling-based approach in [1-5] including two different implementations.
 The Repo provides a python-based and a C++-accelerated Motion Planner [Frenetix](https://github.com/TUM-AVS/Frenetix/) implementation.
 
 # Occlusion-aware Motion Planning
@@ -25,6 +25,10 @@ To try the Occlusion-Ware module, you can find the following readme script here:
 The software is  developed and tested on recent versions of Linux. We strongly recommend to use [Ubuntu 22.04](https://ubuntu.com/download/desktop) or higher.
 For the python installation, we suggest the usage of Virtual Environment with Python 3.10 or Python 3.9
 For the development IDE we suggest [PyCharm](http://www.jetbrains.com/pycharm/)
+
+
+<details>
+<summary> <h2> 🖥 How to Use the Package </h2> </summary>
 
 ### Installation & Run Code
 1. Make sure that the following **dependencies** are installed on your system for the C++ implementation:
@@ -60,29 +64,73 @@ For the development IDE we suggest [PyCharm](http://www.jetbrains.com/pycharm/)
 
 
 <figure style="border: 2px solid #cccccc; padding: 10px; display: inline-block;">
-<img src="doc/images/ZAM_Tjunction-1_8_T-1_038.png" alt="reactive-planner" width="600" />
-  <figcaption style="text-align: center; margin-top: 10px;">Multi-agent Simulation example</figcaption>
+<img src="doc/images/ZAM_Tjunction-1_8_T-1_038.png" alt="reactive-planner" width="500" />
 </figure>
 
-
-## Contributions
-* Rainer Trauth (Main Contributor, [rainer.trauth@tum.de](mailto:rainer.trauth@tum.de))
-* Maximilian Geißlinger (Risk Assessment)
-* Gerald Würsching (Cyber-physical Systems Group, TUM, Cooperation-Chair)
-* Alexander Hobmeier (Master Student)
-* Korbinian Moller (Master Student, *Occlusion-aware Planning*)
-* Luca Troncone (Master Student, *Behavior Planning*)
-* Maximilian Streubel (Master Student, *Multi-agent Simulation*)
+</details>
 
 
-## Literature & Code Extern Code Contributions
-[1] Werling M., et al. *Optimal trajectory generation for dynamic street scenarios in a frenet frame*. In: IEEE International Conference on Robotics and Automation, Anchorage, Alaska, 987–993.
+<details>
+<summary> <h2> 📈 Test Data </h2> </summary>
 
-[2] Werling M., et al. *Optimal trajectories for time-critical street scenarios using discretized terminal manifolds* In:
-The International Journal of Robotics Research, 2012
+Additional scenarios can be found [here](https://commonroad.in.tum.de/scenarios).
 
-[3] Maximilian Geißlinger, et al. WaLe-Net https://github.com/TUMFTM/Wale-Net
+</details>
 
-[4] Maximilian Geißlinger, et al. Ethical Trajrctory Planner https://github.com/TUMFTM/EthicalTrajectoryPlanning
+<details>
+<summary> <h2> 🔧 Modules </h2> </summary>
 
-[5] Gerald Würsching, Matthias Althoff, et al., Cyber-Physical-Systems Group, commonroad-reactive-planner https://gitlab.lrz.de/tum-cps/commonroad-reactive-planner
+Detailed documentation of the functionality behind the single modules can be found below.
+
+1. [General Planning Algorithm](README.md)
+
+2. [Frenetix C++ Trajectory Handler](https://github.com/TUM-AVS/Frenetix)
+
+3. [Commonroad Scenario Handler](cr_scenario_handler/README.md)
+
+4. [Behavior Planner](behavior_planner/README.md)
+
+5. [Occlusion-aware Module](frenetix_motion_planner/occlusion_planning/README.md)
+
+6. [Wale-Net](https://github.com/TUMFTM/Wale-Net)
+
+7. [Risk-Assessment](https://github.com/TUMFTM/EthicalTrajectoryPlanning)
+
+</details>
+
+<details>
+<summary> <h2> 📇 Contact Info </h2> </summary>
+
+[Rainer Trauth](mailto:rainer.trauth@tum.de),
+Institute of Automotive Technology,
+School of Engineering and Design,
+Technical University of Munich,
+85748 Garching,
+Germany
+
+[Johannes Betz](mailto:johannes.betz@tum.de),
+Professorship Autonomous Vehicle Systems,
+School of Engineering and Design,
+Technical University of Munich,
+85748 Garching,
+Germany
+
+</details>
+
+<details>
+<summary> <h2> 📃 Citation </h2> </summary>
+   
+If you use this repository for any academic work, please cite our code:
+
+```bibtex
+@misc{GitHubRepo,
+  author = {Rainer Trauth},
+  title = {Frenetix Motion Planner},
+  year = {2023},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  doi = {10.5281/zenodo.10078062},
+  url = {https://github.com/TUM-AVS/Frenetix-Motion-Planner}
+}
+```
+</details>
