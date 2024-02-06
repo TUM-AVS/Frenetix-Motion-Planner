@@ -6,7 +6,7 @@ __email__ = "rainer.trauth@tum.de"
 __status__ = "Beta"
 
 import behavior_planner.utils.helper_functions as hf
-from frenetix_motion_planner.utility.utils_coordinate_system import CoordinateSystem, smooth_ref_path
+from cr_scenario_handler.utils.utils_coordinate_system import CoordinateSystem, smooth_ref_path
 
 from itertools import zip_longest
 import numpy as np

@@ -1,0 +1,67 @@
+#############################################################################
+# PLEASE FIND INFORMATION HERE: https://github.com/TUM-AVS/Frenetix-Occlusion
+#############################################################################
+
+use_occlusion_module: False # Does not work in every combination, e.g. multiagent
+
+# sensor model settings
+sensor_model:
+  sensor_radius: 50
+  sensor_angle: 360
+
+plot: False
+
+metrics:
+  activated_metrics: # all available metrics: ['hr', 'ttc', 'be', 'ttce', 'dce', 'wttc', 'cp']
+    - 'hr'
+    - 'ttc'
+    - 'be'
+    - 'ttce'
+    - 'dce'
+    - 'wttc'
+    - 'cp'
+
+  metric_thresholds:
+    harm: 1
+    risk: 1
+    be: null
+    cp: null
+    ttc: null
+    wttc: null
+    ttce: null
+    dce: null
+
+spawn_locator:
+  spawn_points_behind_turn: True
+  spawn_point_behind_dynamic_obstacle: True
+  spawn_point_behind_static_obstacle: True
+  max_dynamic_spawn_points: 1
+  max_static_spawn_points: 1
+
+agent_manager:
+  prediction:
+    variance_factor: 1.05
+    size_factor_length_s: 1.2
+    size_factor_width_s: 1.3
+    size_factor_length_l: 1.4
+    size_factor_width_l: 2.5
+  bicycle:
+    default_velocity: 5.0
+    length: 2.0
+    width: 0.9
+    wheelbase: 1.3
+  car:
+    default_velocity: 10.0
+    length: 4.8
+    width: 2.0
+    wheelbase: 2.5
+  truck:
+    default_velocity: 10.0
+    length: 9.0
+    width: 2.5
+    wheelbase: 7.0
+  pedestrian:
+    default_velocity: 1.4
+    length: 0.3
+    width: 0.5
+

@@ -28,7 +28,6 @@ from commonroad_dc.feasibility.solution_checker import valid_solution, Collision
 
 from cr_scenario_handler.utils.configuration import Configuration
 
-
 def create_full_solution_trajectory(config: Configuration, state_list: List[State]) -> Trajectory:
     """
     Create CR solution trajectory from recorded state list of the reactive planner
@@ -42,13 +41,13 @@ def create_full_solution_trajectory(config: Configuration, state_list: List[Stat
     return Trajectory(initial_time_step=new_state_list[0].time_step, state_list=new_state_list)
 
 
-def create_planning_problem_solution(vehicle_conf: Configuration, solution_trajectory: Trajectory, scenario: Scenario,
+def create_planning_problem_solution(config: Configuration, solution_trajectory: Trajectory, scenario: Scenario,
                                      planning_problem: PlanningProblem) -> Solution:
     """
     Creates CommonRoad Solution object
     """
     pps = PlanningProblemSolution(planning_problem_id=planning_problem.planning_problem_id,
-                                  vehicle_type=VehicleType(vehicle_conf.cr_vehicle_id),
+                                  vehicle_type=VehicleType(config.vehicle.cr_vehicle_id),
                                   vehicle_model=VehicleModel.KS,
                                   cost_function=CostFunction.WX1,
                                   trajectory=solution_trajectory)
@@ -58,21 +57,23 @@ def create_planning_problem_solution(vehicle_conf: Configuration, solution_traje
     return solution
 
 
-def reconstruct_states(vehicle_config: Configuration, scenario_dt, states: List[Union[State, TraceState]], inputs: List[InputState]):
-    """reconstructs states from a given list of inputs by forward simulation"""
-    vehicle_dynamics = VehicleDynamics.from_model(VehicleModel.KS, VehicleType(vehicle_config.cr_vehicle_id))
+def reconstruct_states(config: Configuration, scenario, states: List[Union[State, TraceState]], inputs: List[InputState]):
+    """
+    reconstructs states from a given list of inputs by forward simulation
+    """
+    vehicle_dynamics = VehicleDynamics.from_model(VehicleModel.KS, VehicleType(config.vehicle.cr_vehicle_id))
 
     x_sim_list = list()
     x_sim_list.append(states[0])
     for idx, inp in enumerate(inputs):
         x0, x0_ts = vehicle_dynamics.state_to_array(states[idx])
         u0 = vehicle_dynamics.input_to_array(inp)[0]
-        x1_sim = vehicle_dynamics.forward_simulation(x0, u0, scenario_dt, throw=False)
+        x1_sim = vehicle_dynamics.forward_simulation(x0, u0, scenario.dt, throw=False)
         x_sim_list.append(vehicle_dynamics.array_to_state(x1_sim, x0_ts+1))
     return x_sim_list
 
 
-def reconstruct_inputs(scenario_dt, pps: PlanningProblemSolution):
+def reconstruct_inputs(config: Configuration, scenario, pps: PlanningProblemSolution):
     """
     reconstructs inputs for each state transition using the feasibility checker
     """
@@ -83,7 +84,7 @@ def reconstruct_inputs(scenario_dt, pps: PlanningProblemSolution):
     for x0, x1 in zip(pps.trajectory.state_list[:-1], pps.trajectory.state_list[1:]):
         # reconstruct inputs using optimization
         feasible_state, reconstructed_input_state = state_transition_feasibility(x0, x1, vehicle_dynamics,
-                                                                                 scenario_dt,
+                                                                                 scenario.dt,
                                                                                  position_orientation_objective,
                                                                                  position_orientation_feasibility_criteria,
                                                                                  1e-8, np.array([2e-2, 2e-2, 3e-2]),
@@ -93,15 +94,17 @@ def reconstruct_inputs(scenario_dt, pps: PlanningProblemSolution):
     return feasible_state_list, reconstructed_inputs
 
 
-def check_acceleration(scenario_dt, state_list:  List[Union[State, TraceState]], plot=False):
-    """Checks whether the computed acceleration the trajectory matches the velocity difference (dv/dt), i.e., assuming
-    piecewise constant acceleration input"""
+def check_acceleration(config: Configuration, state_list:  List[Union[State, TraceState]], scenario, plot=False):
+    """
+    Checks whether the computed acceleration the trajectory matches the velocity difference (dv/dt), i.e., assuming
+    piecewise constant acceleration input
+    """
     # computed acceleration of trajectory
     a_planned = np.array([state.acceleration for state in state_list])
     a_piecewise_constant = np.array([(a_planned[i] + a_planned[i+1]) / 2 for i in range(len(a_planned)-1)])
     # recalculated acceleration via velocity
     v = np.array([state.velocity for state in state_list])
-    a_recalculated = np.diff(v) / scenario_dt
+    a_recalculated = np.diff(v) / scenario.dt
     # check
     diff = np.abs(a_piecewise_constant-a_recalculated)
     acc_correct = np.all(diff < 1e-01)
@@ -123,7 +126,7 @@ def check_acceleration(scenario_dt, state_list:  List[Union[State, TraceState]],
         # plt.show()
 
 
-def plot_states(vehicle_config: Configuration, scenario_dt, state_list: List[Union[State, TraceState]], save_path: str, reconstructed_states=None, plot_bounds=False):
+def plot_states(config: Configuration, state_list: List[Union[State, TraceState]], scenario, save_path: str, reconstructed_states=None, plot_bounds=False):
     """
     Plots states of trajectory from a given state_list
     state_list must contain the following states: steering_angle, velocity, orientation and yaw_rate
@@ -149,9 +152,9 @@ def plot_states(vehicle_config: Configuration, scenario_dt, state_list: List[Uni
         plt.plot(list(range(len(reconstructed_states))),
                  [state.steering_angle for state in reconstructed_states], color="blue", label="reconstructed")
     if plot_bounds:
-        plt.plot([0, len(state_list)], [vehicle_config.delta_min, vehicle_config.delta_min],
+        plt.plot([0, len(state_list)], [config.vehicle.delta_min, config.vehicle.delta_min],
                  color="red", label="bounds")
-        plt.plot([0, len(state_list)], [vehicle_config.delta_max, vehicle_config.delta_max],
+        plt.plot([0, len(state_list)], [config.vehicle.delta_max, config.vehicle.delta_max],
                  color="red")
     plt.ylabel("delta")
 
@@ -178,7 +181,7 @@ def plot_states(vehicle_config: Configuration, scenario_dt, state_list: List[Uni
     plt.subplot(5, 1, 5)
     plt.plot(list(range(len(state_list))),
              [state.yaw_rate for state in state_list], color="black", label="planned")
-    reconstructed_yaw_rate = np.diff(np.array([state.orientation for state in reconstructed_states])) / scenario_dt
+    reconstructed_yaw_rate = np.diff(np.array([state.orientation for state in reconstructed_states])) / scenario.dt
     reconstructed_yaw_rate = np.insert(reconstructed_yaw_rate, 0, state_list[0].yaw_rate, axis=0)
     plt.plot(list(range(len(state_list))),
              reconstructed_yaw_rate, color="blue", label="reconstructed")
@@ -223,7 +226,7 @@ def plot_states(vehicle_config: Configuration, scenario_dt, state_list: List[Uni
         plt.savefig(f"{plot_path}.svg", format='svg')
 
 
-def plot_inputs(vehicle_config: Configuration, input_list: List[InputState], save_path: str, reconstructed_inputs=None, plot_bounds=False):
+def plot_inputs(config: Configuration, input_list: List[InputState], save_path: str, reconstructed_inputs=None, plot_bounds=False):
     """
     Plots inputs of trajectory from a given input_list
     input_list must contain the following states: steering_angle_speed, acceleration
@@ -241,9 +244,9 @@ def plot_inputs(vehicle_config: Configuration, input_list: List[InputState], sav
                  [state.steering_angle_speed for state in reconstructed_inputs], color="blue",
                  label="reconstructed")
     if plot_bounds:
-        plt.plot([0, len(input_list)], [vehicle_config.v_delta_min, vehicle_config.v_delta_min],
+        plt.plot([0, len(input_list)], [config.vehicle.v_delta_min, config.vehicle.v_delta_min],
                  color="red", label="bounds")
-        plt.plot([0, len(input_list)], [vehicle_config.v_delta_max, vehicle_config.v_delta_max],
+        plt.plot([0, len(input_list)], [config.vehicle.v_delta_max, config.vehicle.v_delta_max],
                  color="red")
     plt.legend()
     plt.ylabel("v_delta in rad/s")
@@ -256,9 +259,9 @@ def plot_inputs(vehicle_config: Configuration, input_list: List[InputState], sav
         plt.plot(list(range(len(reconstructed_inputs))),
                  [state.acceleration for state in reconstructed_inputs], color="blue", label="reconstructed")
     if plot_bounds:
-        plt.plot([0, len(input_list)], [-vehicle_config.a_max, -vehicle_config.a_max],
+        plt.plot([0, len(input_list)], [-config.vehicle.a_max, -config.vehicle.a_max],
                  color="red", label="bounds")
-        plt.plot([0, len(input_list)], [vehicle_config.a_max, vehicle_config.a_max],
+        plt.plot([0, len(input_list)], [config.vehicle.a_max, config.vehicle.a_max],
                  color="red")
     plt.ylabel("a_long in m/s^2")
     plt.tight_layout()
@@ -267,10 +270,23 @@ def plot_inputs(vehicle_config: Configuration, input_list: List[InputState], sav
     plot_path = os.path.join(save_path, "evaluation_plot_inputs")
     plt.savefig(f"{plot_path}.svg", format='svg')
 
-
+def shift_positions_to_center(state_list, config):
+    """
+    Shifts position from rear-axle to vehicle center
+    :param wb_rear_axle: distance between rear-axle and vehicle center
+    """
+    shifted_states = []
+    # shift positions from rear axle to center
+    wb_rear_axle = config.vehicle.wb_rear_axle
+    for state in state_list:
+        orientation = state.orientation
+        state_shifted = state.translate_rotate(np.array([wb_rear_axle * np.cos(orientation),
+                                                    wb_rear_axle * np.sin(orientation)]), 0.0)
+        shifted_states.append(state_shifted)
+    return shifted_states
 def evaluate(scenario: Scenario, planning_problem: PlanningProblem, id: int,
              recorded_state_list: List[State], recorded_input_list: List[InputState],
-             vehicle_conf: Configuration, log_path: str, msg_logger= None):
+             config: Configuration, log_path: str):
     """ Wrapper function for evaluating a planned trajectory.
 
     Calls all other functions in this file on a list of recorded states.
@@ -286,51 +302,49 @@ def evaluate(scenario: Scenario, planning_problem: PlanningProblem, id: int,
 
     # create full solution trajectory
     initial_timestep = planning_problem.initial_state.time_step
+    recorded_states = shift_positions_to_center(recorded_state_list, config)
     ego_solution_trajectory = Trajectory(initial_time_step=initial_timestep,
-                                         state_list=recorded_state_list[initial_timestep:])
+                                         state_list=recorded_states[initial_timestep:])
 
     # plot full ego vehicle trajectory
     # plot_final_trajectory(scenario, planning_problem, ego_solution_trajectory.state_list,
     #                       config, log_path)
 
     # create CR solution
-    solution = create_planning_problem_solution(vehicle_conf, ego_solution_trajectory,
+    solution = create_planning_problem_solution(config, ego_solution_trajectory,
                                                 scenario, planning_problem)
 
     # check feasibility
     # reconstruct inputs (state transition optimizations)
-    feasible, reconstructed_inputs = reconstruct_inputs(scenario.dt, solution.planning_problem_solutions[0])
+    feasible, reconstructed_inputs = reconstruct_inputs(config, scenario, solution.planning_problem_solutions[0])
     try:
         # reconstruct states from inputs
-        reconstructed_states = reconstruct_states(vehicle_conf,scenario.dt, ego_solution_trajectory.state_list,
+        reconstructed_states = reconstruct_states(config, scenario, ego_solution_trajectory.state_list,
                                                   reconstructed_inputs)
         # check acceleration correctness
-        check_acceleration(scenario.dt, ego_solution_trajectory.state_list, plot=True)
+        check_acceleration(config, ego_solution_trajectory.state_list, scenario, plot=True)
 
         # remove first element from input list
         recorded_input_list.pop(0)
 
         # evaluate
-        plot_states(vehicle_conf, scenario.dt ,ego_solution_trajectory.state_list, log_path, reconstructed_states,
+        plot_states(config, ego_solution_trajectory.state_list, scenario, log_path, reconstructed_states,
                     plot_bounds=False)
         # CR validity check
-        if msg_logger:
-            msg_logger.info(f"[Agent {id}] Feasibility Check Result: ")
-        # print(f"[Agent {id}] Feasibility Check Result: ")
+        print(f"[Agent {id}] Feasibility Check Result: ")
         if valid_solution(scenario, PlanningProblemSet([planning_problem]), solution)[0]:
-            msg_logger.info(f"[Agent {id}] Valid")
+            print(f"[Agent {id}] Valid")
     except CollisionException:
-        msg_logger.info(f"[Agent {id}] Infeasible: Collision")
+        print(f"[Agent {id}] Infeasible: Collision")
     except GoalNotReachedException:
-        msg_logger.info(f"[Agent {id}] Infeasible: Goal not reached")
+        print(f"[Agent {id}] Infeasible: Goal not reached")
     except MissingSolutionException:
-        msg_logger.info(f"[Agent {id}] Infeasible: Missing solution")
+        print(f"[Agent {id}] Infeasible: Missing solution")
     except:
-        # traceback.print_exc()
-        error_traceback = traceback.format_exc()
-        msg_logger.info(f"[Agent {id}] Could not reconstruct states: \n {error_traceback}")
+        traceback.print_exc()
+        print(f"[Agent {id}] Could not reconstruct states")
 
-    plot_inputs(vehicle_conf, recorded_input_list, log_path, reconstructed_inputs, plot_bounds=True)
+    plot_inputs(config, recorded_input_list, log_path, reconstructed_inputs, plot_bounds=True)
 
     # Write Solution to XML File for later evaluation
     solutionwriter = CommonRoadSolutionWriter(solution)

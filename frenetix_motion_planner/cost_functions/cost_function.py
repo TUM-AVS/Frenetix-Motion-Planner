@@ -67,7 +67,7 @@ class AdaptableCostFunction(CostFunction):
         self.scenario = scenario
         self.rp = rp
         self.reachset = reachset
-        self.desired_speed = rp._desired_speed
+        self.desired_speed = rp.desired_velocity
         self.predictions = predictions
 
     # calculate all costs for all trajcetories

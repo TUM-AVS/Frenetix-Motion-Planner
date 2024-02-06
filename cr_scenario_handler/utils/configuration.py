@@ -5,26 +5,44 @@ from commonroad_dc.feasibility.vehicle_dynamics import VehicleParameterMapping
 
 
 class Configuration:
+    def __init__(self, config: Union[ListConfig, DictConfig]):
+        pass
+
+
+class SimConfiguration(Configuration):
     """
     Main Configuration class holding all planner-relevant configurations
     """
     def __init__(self, config: Union[ListConfig, DictConfig]):
-        self.multiagent = None
-        self.planning = None
+        super().__init__(config)
+        self.visualization = None
+        self.simulation = None
         self.prediction = None
-        self.sampling = None
-        self.debug = None
-        self.general = None
-        self.cost = None
         self.occlusion = None
         self.behavior = None
-
+        self.evaluation = None
         # initialize subclasses automatically
         for subclasses in config.keys():
             setattr(self, subclasses,  SubConfiguration(config[subclasses]))
 
         # initialize vehicle parameters
         self.vehicle: VehicleConfiguration = VehicleConfiguration(config.vehicle)
+
+
+class FrenetConfiguration(Configuration):
+    """
+    Main Configuration class holding all planner-relevant configurations
+    """
+    def __init__(self, config: Union[ListConfig, DictConfig]):
+        super().__init__(config)
+        # self.multiagent = None
+        self.planning = None
+        self.debug = None
+        self.cost = None
+
+        # initialize subclasses automatically
+        for subclasses in config.keys():
+            setattr(self, subclasses,  SubConfiguration(config[subclasses]))
 
 
 class SubConfiguration:

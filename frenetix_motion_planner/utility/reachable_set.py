@@ -4,9 +4,7 @@ import json
 import numpy as np
 
 from commonroad.scenario.scenario import Scenario
-from frenetix_motion_planner.utility.helper_functions import (
-    find_lanelet_by_position_and_orientation
-)
+from cr_scenario_handler.utils.helper_functions import find_lanelet_by_position_and_orientation
 from frenetix_motion_planner.utility import reachable_set_simple
 from frenetix_motion_planner.utility.responsibility import polygon_padding
 import pygeos

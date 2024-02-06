@@ -1,21 +1,17 @@
-import os
-import sys
 import csv
+import os
 import shutil
-from datetime import datetime
+import sys
 import traceback
-import concurrent.futures
+from datetime import datetime
+
+from cr_scenario_handler.evaluation.simulation_evaluation import evaluate_simulation
 from cr_scenario_handler.simulation.simulation import Simulation
 from cr_scenario_handler.utils.configuration_builder import ConfigurationBuilder
 from cr_scenario_handler.utils.general import get_scenario_list
 
 
-def run_simulation_wrapper(scenario_info):
-    scenario_file, scenario_folder, mod_path, logs_path, use_cpp = scenario_info
-    start_simulation(scenario_file, scenario_folder, mod_path, logs_path, use_cpp, start_multiagent=False)
-
-
-def start_simulation(scenario_name, scenario_folder, mod_path, logs_path, use_cpp, start_multiagent=False, count=0):
+def start_simulation(scenario_name, scenario_folder, mod_path, logs_path, count=0, use_cpp=True, start_multiagent=True):
     log_path = os.path.join(logs_path, scenario_name)
     config_sim = ConfigurationBuilder.build_sim_configuration(scenario_name, scenario_folder, mod_path)
     config_sim.simulation.use_multiagent = start_multiagent
@@ -24,27 +20,36 @@ def start_simulation(scenario_name, scenario_folder, mod_path, logs_path, use_cp
     config_planner.debug.use_cpp = use_cpp
 
     simulation = None
+    evaluation = None
 
     try:
         simulation = Simulation(config_sim, config_planner)
         simulation.run_simulation()
+        if config_sim.evaluation.evaluate_simulation:
+            evaluation = evaluate_simulation(simulation)
+        # close sim_logger
+        simulation.sim_logger.con.close()
 
     except Exception as e:
         try:
+            # close sim_logger
+            simulation.sim_logger.con.close()
+            # close child processes
             simulation.close_processes()
         except:
             pass
         error_traceback = traceback.format_exc()  # This gets the entire error traceback
-        with open(os.path.join(logs_path, 'log_failures.csv'), 'a', newline='') as f:
+        with open('logs/log_failures.csv', 'a', newline='') as f:
             writer = csv.writer(f)
             current_time = datetime.now().strftime('%H:%M:%S')
             # Check if simulation is not None before trying to access current_timestep
             current_timestep = str(simulation.global_timestep) if simulation else "N/A"
-            writer.writerow(["Scenario Name: " + log_path.split("/")[-1] + "\n" +
-                             "Error time: " + str(current_time) + "\n" +
-                             "In Scenario Timestep: " + current_timestep + "\n" +
+            writer.writerow([str(count) +" ; " + "Scenario Name: " + log_path.split("/")[-1] + " ; " +
+                             "Error time: " + str(current_time) + " ; " +
+                             "In Scenario Timestep: " + current_timestep + " ; " +
                              "CODE ERROR: " + str(e) + error_traceback + "\n\n\n\n"])
-            print(error_traceback)
+        raise Exception
+    return simulation, evaluation
 
 
 def main():
@@ -54,10 +59,6 @@ def main():
     mod_path = os.path.dirname(os.path.abspath(__file__))
     logs_path = os.path.join(mod_path, "logs")
 
-    # *************************
-    # Set Python or C++ Planner
-    # *************************
-    use_cpp = True
 
     # *********************************************************
     # Link a Scenario Folder & Start many Scenarios to evaluate
@@ -74,27 +75,27 @@ def main():
     # ***************************************************
     # Delete former logs & Create new score overview file
     # ***************************************************
-    delete_former_logs = False
+    delete_former_logs = True
     if delete_former_logs:
         shutil.rmtree(logs_path, ignore_errors=True)
     os.makedirs(logs_path, exist_ok=True)
     if not os.path.exists(os.path.join(logs_path, "score_overview.csv")):
+        os.makedirs(logs_path, exist_ok=True)
         with open(os.path.join(logs_path, "score_overview.csv"), 'a') as file:
             line = "scenario;agent;timestep;status;message\n"
             file.write(line)
 
     if evaluation_pipeline:
-        num_workers = 4  # or any number you choose based on your resources and requirements
-        with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-            # Create a list of tuples that will be passed to start_simulation_wrapper
-            scenario_info_list = [(scenario_file, scenario_folder, mod_path, logs_path, use_cpp)
-                                  for scenario_file in scenario_files]
-            results = executor.map(run_simulation_wrapper, scenario_info_list)
+        count = 0
+        for scenario_file in scenario_files:
+            start_simulation(scenario_file, scenario_folder, mod_path, logs_path, count)
+            count += 1
 
     else:
         # If not in evaluation_pipeline mode, just run one scenario
-        start_simulation(scenario_files[0], scenario_folder, mod_path, logs_path, use_cpp)
+        simulation_result, evaluation_result = start_simulation(scenario_files[0], scenario_folder, mod_path, logs_path)
+        return simulation_result, evaluation_result
 
 
 if __name__ == '__main__':
-    main()
+    simulation, evaluation = main()

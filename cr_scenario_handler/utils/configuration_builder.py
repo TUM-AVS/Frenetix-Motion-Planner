@@ -2,7 +2,7 @@ import os
 import glob
 from typing import Union
 from omegaconf import OmegaConf, ListConfig, DictConfig
-from cr_scenario_handler.utils.configuration import Configuration
+from cr_scenario_handler.utils.configuration import SimConfiguration, FrenetConfiguration
 
 
 class ConfigurationBuilder:
@@ -11,31 +11,44 @@ class ConfigurationBuilder:
     path_config_default: str = None
 
     @classmethod
-    def build_configuration(cls, name_scenario: str, path_root: str = None,
-                            dir_config: str = "configurations", dir_config_default: str = "defaults") -> Configuration:
+    def build_configuration(cls, scenario_name: str, path_root: str = None,
+                            dir_config="configurations", module="simulation"):
         """Builds configuration from default, scenario-specific, and commandline config files.
 
         Args:
-            name_scenario (str): considered scenario
-            path_root(str): root path of the package
-            dir_config (str): directory storing configurations
-            dir_config_default (str): directory storing default configurations
+            scenario_name (str): considered scenario
+            path_root (str): root path of the package
+            dir_config (str): folder of configs
+            module (str): module name of config
 
         """
         if path_root is None:
             path_root = os.path.normpath(os.path.join(os.path.dirname(__file__), "../../"))
 
-        if cls.path_root is None:
-            cls.set_paths(path_root=path_root, dir_config=dir_config, dir_config_default=dir_config_default)
+        cls.set_paths(path_root=path_root, dir_config=dir_config, dir_config_default=module)
 
-        config_default = cls.construct_configuration(name_scenario)
+        config_default = cls.construct_configuration(scenario_name)
         config_cli = OmegaConf.from_cli()
 
         # configurations coming after overrides the ones coming before
         config_merged = OmegaConf.merge(config_default, config_cli)
-        config = Configuration(config_merged)
 
-        return config
+        return config_merged
+
+    @classmethod
+    def build_sim_configuration(cls, scenario_name: str, scenario_folder: str, root_path: str,
+                                module: str = "simulation") -> SimConfiguration:
+        config_merged = cls.build_configuration(scenario_name, path_root=root_path, module=module)
+        config_merged.simulation["scenario_path"] = os.path.join(scenario_folder, scenario_name + ".xml")
+        config_merged.simulation["log_path"] = os.path.join(root_path, config_merged.simulation.path_output, scenario_name)
+        config_merged.simulation["mod_path"] = root_path
+        return SimConfiguration(config_merged)
+
+    @classmethod
+    def build_frenetplanner_configuration(cls, scenario_name: str = "Default", root_path: str = None,
+                                          module: str="frenetix_motion_planner") -> FrenetConfiguration:
+        config_merged = cls.build_configuration(scenario_name, path_root=root_path, module=module)
+        return FrenetConfiguration(config_merged)
 
     @classmethod
     def set_paths(cls, path_root: str, dir_config: str, dir_config_default: str):
@@ -71,7 +84,8 @@ class ConfigurationBuilder:
                 else:
                     config_default[name_file] = config_partial
 
-        config_default["general"]["name_scenario"] = name_scenario
+        if cls.path_config_default.split("/")[-1] == "simulation":
+            config_default["simulation"]["name_scenario"] = name_scenario
 
         return config_default
 

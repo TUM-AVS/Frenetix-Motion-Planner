@@ -17,22 +17,19 @@ from commonroad.scenario.obstacle import DynamicObstacle, ObstacleType
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.geometry.shape import Rectangle
 from commonroad.scenario.scenario import Scenario
-from commonroad.scenario.state import CustomState, InputState, KSState
+from commonroad.scenario.state import CustomState, InputState
 from commonroad.scenario.trajectory import Trajectory
 
-from frenetix_motion_planner.utility.utils_coordinate_system import CoordinateSystem, interpolate_angle
 from frenetix_motion_planner.state import ReactivePlannerState
 from frenetix_motion_planner.sampling_matrix import SamplingHandler
 from frenetix_motion_planner.utility.logging_helpers import DataLoggingCosts
-from frenetix_motion_planner.utility import helper_functions as hf
 from frenetix_motion_planner.trajectories import TrajectorySample
-from frenetix_motion_planner.prediction_helpers import collision_checker_prediction
 
-from cr_scenario_handler.utils.goalcheck import GoalReachedChecker
+from cr_scenario_handler.utils.utils_coordinate_system import CoordinateSystem, interpolate_angle
+from cr_scenario_handler.utils import helper_functions as hf
+from cr_scenario_handler.utils.collision_check import collision_check_prediction
 
 from commonroad_dc.boundary.boundary import create_road_boundary_obstacle
-import commonroad_dc.pycrcc as pycrcc
-from commonroad_dc.collision.collision_detection.pycrcc_collision_dispatch import create_collision_object
 from commonroad_dc.collision.trajectory_queries.trajectory_queries import trajectory_preprocess_obb_sum, \
                                                                           trajectories_collision_static_obstacles
 
@@ -50,9 +47,9 @@ msg_logger = logging.getLogger("Message_logger")
 
 class Planner:
 
-    def __init__(self, config, scenario: Scenario,
+    def __init__(self, config_plan, config_sim, scenario: Scenario,
                  planning_problem: PlanningProblem,
-                 log_path: str, work_dir: str):
+                 log_path: str, work_dir: str, msg_logger):
         """Wrappers providing a consistent interface for different planners.
         To be implemented for every specific planner.
 
@@ -62,21 +59,22 @@ class Planner:
         :param log_path: Path the planner's log files will be written to.
         :param work_dir: Working directory for the planner.
         """
-        self.config = config
-        self.horizon = config.planning.planning_horizon
-        self.dT = config.planning.dt
-        self.N = int(config.planning.planning_horizon / config.planning.dt)
+        self.config_plan, self.config_sim = config_plan, config_sim
+        self.horizon = config_plan.planning.planning_horizon
+        self.dT = config_plan.planning.dt
+        self.N = int(config_plan.planning.planning_horizon / config_plan.planning.dt)
         self._check_valid_settings()
-        self.vehicle_params = config.vehicle
-        self._low_vel_mode_threshold = config.planning.low_vel_mode_threshold
-
+        self.vehicle_params = config_sim.vehicle
+        self._low_vel_mode_threshold = config_plan.planning.low_vel_mode_threshold
+        self.msg_logger = msg_logger
         # Multiprocessing & Settings
-        self._multiproc = config.debug.multiproc
-        self._num_workers = config.debug.num_workers
+        self._multiproc = config_plan.debug.multiproc
+        self._num_workers = config_plan.debug.num_workers
 
         # Initial State
         self.x_0: Optional[ReactivePlannerState] = None
         self.x_cl: Optional[Tuple[List, List]] = None
+        self.reference_path = None
 
         self.record_state_list: List[ReactivePlannerState] = list()
         self.record_input_list: List[InputState] = list()
@@ -85,8 +83,7 @@ class Planner:
         self._LOW_VEL_MODE = False
 
         # Scenario
-        self._co: Optional[CoordinateSystem] = None
-        self._cc: Optional[pycrcc.CollisionChecker] = None
+        self.coordinate_system = None
         self.scenario = None
         self.road_boundary = None
         self.set_scenario(scenario)
@@ -98,26 +95,20 @@ class Planner:
         self.cost_function = None
         self.goal_status = False
         self.full_goal_status = None
-        self.goal_area = hf.get_goal_area_shape_group(planning_problem=planning_problem, scenario=scenario)
+        self.goal_area = None
         self.occlusion_module = None
         self.goal_message = "Planner is in time step 0!"
 
-        self._desired_speed = None
+        self.desired_velocity = None
         self._desired_d = 0.
-        self.max_seen_costs = 1
+        # self.max_seen_costs = 1
 
-        self.cost_weights = OmegaConf.to_object(config.cost.cost_weights)
+        self.cost_weights = OmegaConf.to_object(config_plan.cost.cost_weights)
 
         # **************************
         # Extensions Initialization
         # **************************
-        if config.prediction.mode:
-            self.use_prediction = True
-        else:
-            self.use_prediction = False
-
-        self.set_collision_checker(self.scenario)
-        self._goal_checker = GoalReachedChecker(planning_problem)
+        self.use_prediction = False
         self._collision_counter = 0
 
         # **************************
@@ -127,53 +118,48 @@ class Planner:
         self._infeasible_count_collision = 0
         self._infeasible_count_kinematics = None
         self.infeasible_kinematics_percentage = None
-        self._optimal_cost = 0
+        # self._optimal_cost = 0
 
         # **************************
         # Sampling Initialization
         # **************************
         # Set Sampling Parameters#
-        self._sampling_min = config.sampling.sampling_min
-        self._sampling_max = config.sampling.sampling_max
-        self.sampling_handler = SamplingHandler(dt=self.dT, max_sampling_number=config.sampling.sampling_max,
-                                                t_min=config.sampling.t_min, horizon=self.horizon,
-                                                delta_d_max=config.sampling.d_max, delta_d_min=config.sampling.d_min)
+        self._sampling_min = config_plan.planning.sampling_min
+        self._sampling_max = config_plan.planning.sampling_max
+        self.sampling_handler = SamplingHandler(dt=self.dT, max_sampling_number=config_plan.planning.sampling_max,
+                                                t_min=config_plan.planning.t_min, horizon=self.horizon,
+                                                delta_d_max=config_plan.planning.d_max, delta_d_min=config_plan.planning.d_min)
 
         self.stopping_s = None
 
         # *****************************
         # Debug & Logger Initialization
         # *****************************
-        self.log_risk = config.debug.log_risk
-        self.save_all_traj = config.debug.save_all_traj
+        self.log_risk = self.config_plan.debug.log_risk
+        self.save_all_traj = self.config_plan.debug.save_all_traj
         self.all_traj = None
         self.optimal_trajectory = None
-        self.use_occ_model = config.occlusion.use_occlusion_module
-        self.logger = DataLoggingCosts(
-            config=config,
-            scenario=scenario,
-            planning_problem=planning_problem,
-            path_logs=log_path,
-            save_all_traj=self.save_all_traj,
-            cost_params=config.cost.cost_weights
-        )
-        self._draw_traj_set = config.debug.draw_traj_set
-        self._kinematic_debug = config.debug.kinematic_debug
+        self.trajectory_pair = None
+        self.use_occ_model = False
+        if config_plan.debug.activate_logging:
+            self.logger = DataLoggingCosts(
+                config=self.config_plan,
+                scenario=scenario,
+                planning_problem=planning_problem,
+                path_logs=log_path,
+                save_all_traj=self.save_all_traj,
+                cost_params=self.config_plan.cost.cost_weights
+            )
+        else:
+            self.logger = None
+        self._draw_traj_set = self.config_plan.debug.draw_traj_set
+        self._kinematic_debug = self.config_plan.debug.kinematic_debug
 
         # **************************
         # Risk & Harm Initialization
         # **************************
         self.params_harm = load_harm_parameter_json(work_dir)
         self.params_risk = load_risk_json(work_dir)
-
-    @property
-    def goal_checker(self):
-        """Return the goal checker."""
-        return self._goal_checker
-
-    @property
-    def collision_checker(self) -> pycrcc.CollisionChecker:
-        return self._cc
 
     @property
     def infeasible_count_collision(self):
@@ -203,7 +189,8 @@ class Planner:
         if scenario is not None:
             self.set_scenario(scenario)
         if reference_path is not None:
-            self.set_reference_path(reference_path)
+            self.reference_path = reference_path
+            self.set_reference_and_coordinate_system(reference_path)
         if planning_problem is not None:
             self.set_planning_problem(planning_problem)
         if goal_area is not None:
@@ -232,7 +219,7 @@ class Planner:
         self.x_0 = x_0
         if self.x_0.velocity < self._low_vel_mode_threshold:
             self._LOW_VEL_MODE = True
-            msg_logger.debug("Plan Timestep in Low-Velocity Mode!")
+            self.msg_logger.debug("Plan Timestep in Low-Velocity Mode!")
         else:
             self._LOW_VEL_MODE = False
 
@@ -277,6 +264,7 @@ class Planner:
         self.goal_area = goal_area
 
     def set_occlusion_module(self, occ_module):
+        self.use_occ_model = True
         self.occlusion_module = occ_module
 
     def set_planning_problem(self, planning_problem: PlanningProblem):
@@ -306,15 +294,15 @@ class Planner:
         :param v_limit: limit velocity due to behavior planner in m/s
         :return: velocity in m/s
         """
-        self._desired_speed = desired_velocity
+        self.desired_velocity = desired_velocity
 
-        min_v = max(0.01, current_speed - 0.75 * self.vehicle_params.a_max * self.horizon)
+        min_v = max(0.01, current_speed - 0.5 * self.vehicle_params.a_max * self.horizon)
         max_v = min(min(current_speed + (self.vehicle_params.a_max / 7.0) * self.horizon, v_limit),
                     self.vehicle_params.v_max)
 
         self.sampling_handler.set_v_sampling(min_v, max_v)
 
-        msg_logger.info('Sampled interval of velocity: {} m/s - {} m/s'.format(min_v, max_v))
+        self.msg_logger.info('Sampled interval of velocity: {} m/s - {} m/s'.format(min_v, max_v))
 
     def set_risk_costs(self, trajectory):
 
@@ -341,7 +329,6 @@ class Planner:
         """
         # go through sorted list of sorted trajectories and check for collisions
         for trajectory in feasible_trajectories:
-
             # skip trajectory if occ module is activated and trajectory is invalid (harm exceeds max harm)
             if self.use_occ_model and trajectory.valid is False:
                 continue
@@ -353,8 +340,9 @@ class Planner:
             coll_obj = self.create_coll_object(occupancy, self.vehicle_params, self.x_0)
 
             # TODO: Check kinematic checks in cpp. no feasible traj available
+
             if self.use_prediction:
-                collision_detected = collision_checker_prediction(
+                collision_detected = collision_check_prediction(
                     predictions=self.predictions,
                     scenario=self.scenario,
                     ego_co=coll_obj,
@@ -389,6 +377,11 @@ class Planner:
             trajectory._coll_detected = collision_detected
 
             if not collision_detected and boundary_harm == 0:
+                if self.use_occ_model:
+                    metric, safety_check = self.occlusion_module.trajectory_safety_assessment(trajectory)
+                    if safety_check is False:
+                        continue
+
                 return trajectory
 
         return None
@@ -454,30 +447,38 @@ class Planner:
         :param trajectory: the optimal trajectory
         :return: (CartesianTrajectory, FrenetTrajectory, lon sample, lat sample)
         """
-        # go along state list
-        cart_list = list()
+        # Cache attributes for quicker access
+        cartesian = trajectory.cartesian
+        x_0 = self.x_0
+        dT = self.dT
+        vehicle_params = self.vehicle_params
 
-        for i in range(len(trajectory.cartesian.x)):
-            # create Cartesian state
-            cart_states = dict()
-            cart_states['time_step'] = self.x_0.time_step+i
-            cart_states['position'] = np.array([trajectory.cartesian.x[i], trajectory.cartesian.y[i]])
-            cart_states['orientation'] = trajectory.cartesian.theta[i]
-            cart_states['velocity'] = trajectory.cartesian.v[i]
-            cart_states['acceleration'] = trajectory.cartesian.a[i]
-            if i > 0:
-                cart_states['yaw_rate'] = (trajectory.cartesian.theta[i] - trajectory.cartesian.theta[i-1]) / self.dT
-            else:
-                cart_states['yaw_rate'] = self.x_0.yaw_rate
-            # TODO Check why computation with yaw rate was faulty ??
-            cart_states['steering_angle'] = np.arctan2(self.vehicle_params.wheelbase *
-                                                       trajectory.cartesian.kappa[i], 1.0)
-            cart_list.append(ReactivePlannerState(**cart_states))
+        # Precompute values that are static or can be vectorized
+        time_steps = x_0.time_step + np.arange(len(cartesian.x))
+        positions = np.vstack((cartesian.x, cartesian.y)).T
+        orientations = cartesian.theta
+        velocities = cartesian.v
+        accelerations = cartesian.a
+        yaw_rates = np.gradient(cartesian.theta) / dT
+        yaw_rates[0] = x_0.yaw_rate  # set the first yaw_rate to initial condition
+        steering_angles = np.arctan2(vehicle_params.wheelbase * cartesian.kappa, 1.0)
 
-        # make Cartesian and Curvilinear Trajectory
-        cartTraj = Trajectory(self.x_0.time_step, cart_list)
+        # Use a list comprehension to create ReactivePlannerState instances
+        cart_list = [
+            ReactivePlannerState(
+                time_step=int(time_step),  # Convert numpy int64 to Python int
+                position=position,
+                orientation=orientation,
+                velocity=velocity,
+                acceleration=acceleration,
+                yaw_rate=yaw_rate,
+                steering_angle=steering_angle
+            )
+            for time_step, position, orientation, velocity, acceleration, yaw_rate, steering_angle in zip(
+                time_steps, positions, orientations, velocities, accelerations, yaw_rates, steering_angles)
+        ]
 
-        return cartTraj
+        return Trajectory(x_0.time_step, cart_list)
 
     def convert_state_list_to_commonroad_object(self, state_list: List[ReactivePlannerState], obstacle_id: int = 42):
         """
@@ -517,11 +518,6 @@ class Planner:
 
         return collision_object
 
-    def check_goal_reached(self):
-        # Get the ego vehicle
-        self.goal_checker.register_current_state(self.x_0)
-        self.goal_status, self.goal_message, self.full_goal_status = self.goal_checker.goal_reached_status()
-
     def shift_orientation(self, trajectory: Trajectory, interval_start=-np.pi, interval_end=np.pi):
         for state in trajectory.state_list:
             while state.orientation < interval_start:
@@ -539,46 +535,19 @@ class Planner:
     def set_scenario(self, scenario: Scenario):
         """Update the scenario to synchronize between agents"""
         self.scenario = scenario
-        self.set_collision_checker(scenario)
-        try:
-            (
-                _,
-                self.road_boundary,
-            ) = create_road_boundary_obstacle(
-                scenario=self.scenario,
-                method="aligned_triangulation",
-                axis=2,
-            )
-        except:
-            raise RuntimeError("Road Boundary can not be created")
 
-    def set_collision_checker(self, scenario: Scenario = None, collision_checker: pycrcc.CollisionChecker = None):
-        """
-        Sets the collision checker used by the planner using either of the two options:
-        If a collision_checker object is passed, then it is used directly by the planner.
-        If no collision checker object is passed, then a CommonRoad scenario must be provided from which the collision
-        checker is created and set.
-        :param scenario: CommonRoad Scenario object
-        :param collision_checker: pycrcc.CollisionChecker object
-        """
-        # self.scenario = scenario
-        if collision_checker is None:
-            assert scenario is not None, '<ReactivePlanner.set collision checker>: Please provide a CommonRoad scenario OR a ' \
-                                         'CollisionChecker object to the planner.'
-            cc_scenario = pycrcc.CollisionChecker()
-            for co in scenario.static_obstacles:
-                obs = create_collision_object(co)
-                cc_scenario.add_collision_object(obs)
-            for co in scenario.dynamic_obstacles:
-                tvo = create_collision_object(co)
-                cc_scenario.add_collision_object(tvo)
-            _, road_boundary_sg_obb = create_road_boundary_obstacle(scenario)
-            cc_scenario.add_collision_object(road_boundary_sg_obb)
-            self._cc: pycrcc.CollisionChecker = cc_scenario
-        else:
-            assert scenario is None, '<ReactivePlanner.set collision checker>: Please provide a CommonRoad scenario OR a ' \
-                                     'CollisionChecker object to the planner.'
-            self._cc: pycrcc.CollisionChecker = collision_checker
+        if not self.road_boundary:
+            try:
+                (
+                    _,
+                    self.road_boundary,
+                ) = create_road_boundary_obstacle(
+                    scenario=self.scenario,
+                    method="aligned_triangulation",
+                    axis=2,
+                )
+            except:
+                raise RuntimeError("Road Boundary can not be created")
 
     def _compute_initial_states(self, x_0: ReactivePlannerState) -> (np.ndarray, np.ndarray):
         """
@@ -588,26 +557,26 @@ class Planner:
         """
         # compute curvilinear position
         try:
-            s, d = self._co.convert_to_curvilinear_coords(x_0.position[0], x_0.position[1])
+            s, d = self.coordinate_system.convert_to_curvilinear_coords(x_0.position[0], x_0.position[1])
         except ValueError:
-            msg_logger.critical("Initial state could not be transformed.")
+            self.msg_logger.critical("Initial state could not be transformed.")
             raise ValueError("Initial state could not be transformed.")
 
         # factor for interpolation
-        s_idx = np.argmax(self._co.ref_pos > s) - 1
-        s_lambda = (s - self._co.ref_pos[s_idx]) / (
-                self._co.ref_pos[s_idx + 1] - self._co.ref_pos[s_idx])
+        s_idx = np.argmax(self.coordinate_system.ref_pos > s) - 1
+        s_lambda = (s - self.coordinate_system.ref_pos[s_idx]) / (
+                self.coordinate_system.ref_pos[s_idx + 1] - self.coordinate_system.ref_pos[s_idx])
 
         # compute orientation in curvilinear coordinate frame
-        ref_theta = np.unwrap(self._co.ref_theta)
-        theta_cl = x_0.orientation - interpolate_angle(s, self._co.ref_pos[s_idx], self._co.ref_pos[s_idx + 1],
+        ref_theta = np.unwrap(self.coordinate_system.ref_theta)
+        theta_cl = x_0.orientation - interpolate_angle(s, self.coordinate_system.ref_pos[s_idx], self.coordinate_system.ref_pos[s_idx + 1],
                                                        ref_theta[s_idx], ref_theta[s_idx + 1])
 
         # compute reference curvature
-        kr = (self._co.ref_curv[s_idx + 1] - self._co.ref_curv[s_idx]) * s_lambda + self._co.ref_curv[
+        kr = (self.coordinate_system.ref_curv[s_idx + 1] - self.coordinate_system.ref_curv[s_idx]) * s_lambda + self.coordinate_system.ref_curv[
             s_idx]
         # compute reference curvature change
-        kr_d = (self._co.ref_curv_d[s_idx + 1] - self._co.ref_curv_d[s_idx]) * s_lambda + self._co.ref_curv_d[s_idx]
+        kr_d = (self.coordinate_system.ref_curv_d[s_idx + 1] - self.coordinate_system.ref_curv_d[s_idx]) * s_lambda + self.coordinate_system.ref_curv_d[s_idx]
 
         # compute initial ego curvature from initial steering angle
         kappa_0 = np.tan(x_0.steering_angle) / self.vehicle_params.wheelbase
@@ -642,9 +611,9 @@ class Planner:
         x_0_lon: List[float] = [s, s_velocity, s_acceleration]
         x_0_lat: List[float] = [d, d_velocity, d_acceleration]
 
-        msg_logger.debug(f'Initial state for planning is {x_0}')
-        msg_logger.debug(f'Initial x_0 lon = {x_0_lon}')
-        msg_logger.debug(f'Initial x_0 lat = {x_0_lat}')
+        self.msg_logger.debug(f'Initial state for planning is {x_0}')
+        self.msg_logger.debug(f'Initial x_0 lon = {x_0_lon}')
+        self.msg_logger.debug(f'Initial x_0 lat = {x_0_lat}')
 
         return x_0_lon, x_0_lat
 
@@ -652,38 +621,27 @@ class Planner:
         # **************************
         # Logging
         # **************************
-        if optimal_trajectory is not None:
+        if optimal_trajectory is not None and self.logger:
             self.logger.log(optimal_trajectory, time_step=self.x_0.time_step,
                             infeasible_kinematics=self._infeasible_count_kinematics,
                             percentage_kinematics=self.infeasible_kinematics_percentage, planning_time=planning_time,
-                            ego_vehicle=self.ego_vehicle_history[-1])
+                            ego_vehicle=self.ego_vehicle_history[-1], desired_velocity=self.desired_velocity)
             self.logger.log_predicition(self.predictions)
-        if self.save_all_traj:
+        if self.save_all_traj and self.logger:
             self.logger.log_all_trajectories(self.all_traj, self.x_0.time_step)
 
         # **************************
         # Check Cost Status
         # **************************
-        if optimal_trajectory is not None and self.x_0.time_step > 0:
-            self._optimal_cost = optimal_trajectory.cost
-            msg_logger.debug('Found optimal trajectory with {}% of maximum seen costs'
-                  .format(int((self._optimal_cost/self.max_seen_costs)*100)))
-
-        if optimal_trajectory is not None:
-            if self.max_seen_costs < self._optimal_cost:
-                self.max_seen_costs = self._optimal_cost
-
-        # calc potential phantom harm of optimal trajectory
-        if optimal_trajectory is not None and self.occlusion_module is not None:
-            self.occlusion_module.occ_phantom_module.analyze_trajectory_harm(optimal_trajectory)
-
-        # plot optimal trajectory in occlusion plot
-        if self.occlusion_module is not None:
-            if self.occlusion_module.occ_plot is not None:
-                self.occlusion_module.occ_plot.plot_trajectories(optimal_trajectory, color='k', zorder=100)
-                self.occlusion_module.occ_plot.save_plot_to_file()
-                if self.occlusion_module.occ_plot.interactive_plot is True:
-                    self.occlusion_module.occ_plot.pause()
+        # if optimal_trajectory is not None:
+        #     self._optimal_cost = optimal_trajectory.cost
+        #
+        #     if self._optimal_cost is not None:
+        #         self.msg_logger.debug('Found optimal trajectory with {}% of maximum seen costs'
+        #                               .format(int((self._optimal_cost/self.max_seen_costs)*100)))
+        #
+        #         if self.max_seen_costs < self._optimal_cost:
+        #             self.max_seen_costs = self._optimal_cost
 
     def set_stopping_point(self, stop_s_coordinate):
         """
@@ -703,18 +661,18 @@ class Planner:
         """
         raise NotImplementedError()
 
+    # @abstractmethod
+    # def check_collision(self, ego_obstacle):
+    #     """Planner collision check function.
+    #
+    #     To be implemented for every specific planner.
+    #
+    #     :returns: Exit code of the collision check,
+    #     """
+    #     raise NotImplementedError()
+
     @abstractmethod
-    def check_collision(self, ego_obstacle):
-        """Planner collision check function.
-
-        To be implemented for every specific planner.
-
-        :returns: Exit code of the collision check,
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def set_reference_path(self, reference_path: np.ndarray = None, coordinate_system: CoordinateSystem = None):
+    def set_reference_and_coordinate_system(self, *args, **kwargs):
         """Set reference path
         To be implemented for every specific planner.
         """

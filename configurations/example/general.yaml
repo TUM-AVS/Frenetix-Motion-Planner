@@ -1,4 +1,0 @@
-# paths are relative to the root directory
-path_scenarios: example_scenarios/
-path_output: logs/
-max_steps: 1.3  # Percentage of Scenario Horizon 1.2=20% longer. If Scenario Horizon not available: Use 200

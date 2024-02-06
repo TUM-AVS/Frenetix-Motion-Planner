@@ -70,7 +70,7 @@ def collision_vis(scenario,
         No return value.
     """
     # clear everything
-    plt.cla()
+    # plt.cla()
 
     fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1)
     fig.set_size_inches(5.833, 8.25)
@@ -103,7 +103,7 @@ def collision_vis(scenario,
     # plot the scenario at the current time step
     scenario.draw(rnd, draw_params=scenario_params)
 
-    plt.gca().set_aspect('equal')
+    # plt.gca().set_aspect('equal')
 
     # draw the planning problem
     if planning_problem is not None:

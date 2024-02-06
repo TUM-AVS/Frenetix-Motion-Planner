@@ -1,0 +1,10 @@
+# activation of the wale-net prediction
+mode: "walenet"  # "walenet" or "ground_truth" or None
+
+# Sensor Radius in Meter and Occlusion Area
+calc_visible_area: False
+sensor_radius: 80
+
+# Cone Angle and Safety Dist for Cone Angle
+cone_angle: 20
+cone_safety_dist: 5

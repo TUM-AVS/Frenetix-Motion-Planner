@@ -12,8 +12,7 @@ from commonroad.scenario.scenario import Scenario
 from scipy.integrate import simps
 import commonroad_dc.pycrcc as pycrcc
 from shapely.geometry import LineString, Point
-from frenetix_motion_planner.utility.helper_functions import distance
-from frenetix_motion_planner.utility import helper_functions as hf
+from cr_scenario_handler.utils import helper_functions as hf
 from scipy.spatial.distance import cdist
 from risk_assessment.collision_probability import (
     get_collision_probability_fast, get_inv_mahalanobis_dist
@@ -336,7 +335,7 @@ def dist_to_nearest_point(center_vertices: np.ndarray, pos: np.array) -> float:
     project = linestring.project(point)
     nearest_point = linestring.interpolate(project)
 
-    return distance(pos, np.array([nearest_point.x, nearest_point.y]))
+    return hf.distance(pos, np.array([nearest_point.x, nearest_point.y]))
 
 
 def prediction_costs(trajectory: frenetix_motion_planner.trajectories.TrajectorySample,

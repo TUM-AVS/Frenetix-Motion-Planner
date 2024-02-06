@@ -1,0 +1,42 @@
+###################################
+#        General Settings         #
+###################################
+
+# Increase allowed planning horizon compared to planning-problem
+max_steps: 1.7  # Percentage of Scenario Horizon 1.3=30% longer. If Scenario Horizon not available: Use 200 time steps
+# used planner interface class (must be located in /cr_scenario_handler/planner_interfaces and a subclass of PlannerInterface
+# currently supported: FrenetPlannerInterface
+used_planner_interface: FrenetPlannerInterface
+
+# paths are relative to the root directory
+path_scenarios: example_scenarios/
+path_output: logs/
+
+###################################
+#        Multiagent Settings      #
+###################################
+
+# If True, the vehicles specified in agent_ids are made agents,
+# otherwise, number_of_agents vehicles are randomly chosen.
+use_specific_agents: False
+# List of vehicle IDs to use as agents additionally to the original PlanningProblem
+agent_ids: []
+# Number of agents to create additionally to the original PlanningProblem.
+# Set to -1 to use all DynamicObstacles from the scenario.
+number_of_agents: -1
+# If not use_specific_agents, indicates whether the agents are selected randomly
+# or by their order in the scenario
+select_agents_randomly: True
+
+# Messages Logging
+# Options: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL
+msg_log_mode: INFO
+
+# multiprocessing on simulation (agent) level
+multiprocessing: True
+# -1 uses all available physical cores except one
+num_procs: 6
+
+
+
+

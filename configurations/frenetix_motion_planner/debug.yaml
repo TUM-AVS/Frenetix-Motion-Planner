@@ -1,0 +1,21 @@
+# Trajectory Debug Information
+save_all_traj: False #(only supported in single-processing simulation)
+save_unweighted_costs: False
+log_risk: False # Doesn't work for ground_truth prediction!
+draw_traj_set: True #(only supported in single-processing simulation)
+kinematic_debug: True
+
+# Collision Report Information
+collision_report: True
+
+# Logging of CSVs etc. should be activated
+activate_logging: True
+
+# Messages Logging
+# Options: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL
+msg_log_mode: INFO
+
+# use multiprocessing True/False (on frenetix level (trajectory sampling)
+multiproc: True
+# number of workers for multiprocessing
+num_workers: 6

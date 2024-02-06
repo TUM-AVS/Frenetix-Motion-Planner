@@ -239,7 +239,6 @@ class SqlLogger:
 
         return inf_row
 
-
     def log_all_trajectories(self, all_trajectories, time_step: int):
         trajectory_data = []
         meta_data = []
@@ -266,7 +265,8 @@ class DataLoggingCosts:
     # ----------------------------------------------------------------------------------------------------------
     # CONSTRUCTOR ----------------------------------------------------------------------------------------------
     # ----------------------------------------------------------------------------------------------------------
-    def __init__(self, path_logs: str, config: Configuration, scenario: Scenario, planning_problem: PlanningProblem, header_only: bool = False, save_all_traj: bool = False, cost_params: dict = None) -> None:
+    def __init__(self, path_logs: str, config, scenario: Scenario, planning_problem: PlanningProblem,
+                 header_only: bool = False, save_all_traj: bool = False, cost_params: dict = None) -> None:
         """"""
 
         self.save_all_traj = save_all_traj
@@ -275,6 +275,7 @@ class DataLoggingCosts:
         self.trajectories_header = None
         self.prediction_header = None
         self.collision_header = None
+        self.save_unweighted_costs = config.debug.save_unweighted_costs
 
         self.path_logs = path_logs
         self._cost_list_length = None
@@ -345,6 +346,7 @@ class DataLoggingCosts:
             "kappa_rad;"
             "curvilinear_orientations_rad;"
             "velocities_mps;"
+            "desired_velocity_mps;"
             "accelerations_mps2;"
             "s_position_m;"
             "d_position_m;"
@@ -407,7 +409,7 @@ class DataLoggingCosts:
         return self.header
 
     def log(self, trajectory, time_step: int, infeasible_kinematics, percentage_kinematics,
-            planning_time: float, ego_vehicle: DynamicObstacle, collision: bool = False):
+            planning_time: float, ego_vehicle: DynamicObstacle, collision: bool = False, desired_velocity: float = None):
 
         new_line = "\n" + str(time_step)
 
@@ -442,6 +444,7 @@ class DataLoggingCosts:
             new_line += ";" + json.dumps(str(','.join(map(str, trajectory.curvilinear.theta))), default=default)
             # log velocity & acceleration
             new_line += ";" + json.dumps(str(','.join(map(str, cartesian.v))), default=default)
+            new_line += ";" + json.dumps(str(desired_velocity), default=default)
             new_line += ";" + json.dumps(str(','.join(map(str, cartesian.a))), default=default)
 
             # # log frenet coordinates (distance to reference path)
@@ -458,7 +461,7 @@ class DataLoggingCosts:
                 new_line += ";;"
 
             # log occ module harm
-            if trajectory.harm_occ_module is not None:
+            if hasattr(trajectory, "harm_occ_module") and trajectory.harm_occ_module is not None:
                 new_line += ";" + json.dumps(str(trajectory.harm_occ_module), default=default)
             else:
                 new_line += ";"
@@ -613,7 +616,10 @@ class DataLoggingCosts:
         # log costs
         for cost_template in self.cost_names_list:
             if cost_template in cost_list_names:
-                new_line += ";" + json.dumps(str(trajectory.costMap[cost_template][1]), default=default)
+                if not self.save_unweighted_costs:
+                    new_line += ";" + json.dumps(str(trajectory.costMap[cost_template][1]), default=default)
+                else:
+                    new_line += ";" + json.dumps(str(trajectory.costMap[cost_template][0]), default=default)
             else:
                 new_line += ";" + json.dumps(str(0), default=default)
 
@@ -628,47 +634,47 @@ def default(obj):
     raise TypeError("Not serializable (type: " + str(type(obj)) + ")")
 
 
-def messages_logger_initialization(config: Configuration, log_path) -> logging.Logger:
-    """
-    Message Logger Initialization
-    """
-
-    # msg logger
-    msg_logger = logging.getLogger("Message_logger")
-
-    if msg_logger.handlers:
-        return msg_logger
-
-    # Create directories
-    if not os.path.exists(log_path):
-        os.makedirs(log_path)
-
-    # create file handler (outputs to file)
-    path_log = os.path.join(log_path, "messages.log")
-    file_handler = logging.FileHandler(path_log)
-
-    # set logging levels
-    loglevel = config.debug.msg_log_mode
-    msg_logger.setLevel(loglevel)
-    file_handler.setLevel(loglevel)
-
-    # create log formatter
-    # formatter = logging.Formatter('%(asctime)s\t%(filename)s\t\t%(funcName)s@%(lineno)d\t%(levelname)s\t%(message)s')
-    log_formatter = logging.Formatter("%(levelname)-8s [%(asctime)s] --- %(message)s (%(filename)s:%(lineno)s)",
-                                  "%Y-%m-%d %H:%M:%S")
-    file_handler.setFormatter(log_formatter)
-
-    # create stream handler (prints to stdout)
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setLevel(loglevel)
-
-    # create stream formatter
-    stream_formatter = logging.Formatter("%(levelname)-8s [%(filename)s]: %(message)s")
-    stream_handler.setFormatter(stream_formatter)
-
-    # add handlers
-    msg_logger.addHandler(file_handler)
-    msg_logger.addHandler(stream_handler)
-    msg_logger.propagate = False
-
-    return msg_logger
+# def messages_logger_initialization(config: Configuration, log_path, logger=logging.getLogger("Message_logger")) -> logging.Logger:
+#     """
+#     Message Logger Initialization
+#     """
+#
+#     # msg logger
+#     msg_logger = logger
+#
+#     if msg_logger.handlers:
+#         return msg_logger
+#
+#     # Create directories
+#     if not os.path.exists(log_path):
+#         os.makedirs(log_path)
+#
+#     # create file handler (outputs to file)
+#     path_log = os.path.join(log_path, "messages.log")
+#     file_handler = logging.FileHandler(path_log)
+#
+#     # set logging levels
+#     loglevel = config.debug.msg_log_mode
+#     msg_logger.setLevel(loglevel)
+#     file_handler.setLevel(loglevel)
+#
+#     # create log formatter
+#     # formatter = logging.Formatter('%(asctime)s\t%(filename)s\t\t%(funcName)s@%(lineno)d\t%(levelname)s\t%(message)s')
+#     log_formatter = logging.Formatter("%(levelname)-8s [%(asctime)s] --- %(message)s (%(filename)s:%(lineno)s)",
+#                                   "%Y-%m-%d %H:%M:%S")
+#     file_handler.setFormatter(log_formatter)
+#
+#     # create stream handler (prints to stdout)
+#     stream_handler = logging.StreamHandler(sys.stdout)
+#     stream_handler.setLevel(loglevel)
+#
+#     # create stream formatter
+#     stream_formatter = logging.Formatter("%(levelname)-8s [%(filename)s]: %(message)s")
+#     stream_handler.setFormatter(stream_formatter)
+#
+#     # add handlers
+#     msg_logger.addHandler(file_handler)
+#     msg_logger.addHandler(stream_handler)
+#     msg_logger.propagate = False
+#
+#     return msg_logger

@@ -11,17 +11,13 @@ import time
 
 import numpy as np
 from typing import List
-import logging
 import multiprocessing
 from multiprocessing.context import Process
-
-# commonroad_dc
-import commonroad_dc.pycrcc as pycrcc
 
 # frenetix_motion_planner imports
 from frenetix_motion_planner.polynomial_trajectory import QuinticTrajectory, QuarticTrajectory
 from frenetix_motion_planner.trajectories import TrajectoryBundle, TrajectorySample, CartesianSample, CurviLinearSample
-from frenetix_motion_planner.utility.utils_coordinate_system import CoordinateSystem, interpolate_angle, smooth_ref_path
+from cr_scenario_handler.utils.utils_coordinate_system import CoordinateSystem, interpolate_angle
 from frenetix_motion_planner.cost_functions.cost_function import AdaptableCostFunction
 
 from frenetix_motion_planner.planner import Planner
@@ -30,58 +26,43 @@ from frenetix_motion_planner.planner import Planner
 _EPS = 1e-5
 
 # get logger
-msg_logger = logging.getLogger("Message_logger")
+# msg_logger = logging.getLogger("Message_logger")
 
 
 class ReactivePlannerPython(Planner):
     """
     Reactive planner class that plans trajectories in a sampling-based fashion
     """
-    def __init__(self, config, scenario, planning_problem, log_path, work_dir):
+    def __init__(self, config_plan, config_sim, scenario, planning_problem, log_path, work_dir, msg_logger):
         """
         Constructor of the reactive planner
         : param config: Configuration object holding all planner-relevant configurations
         """
-        super().__init__(config, scenario, planning_problem, log_path, work_dir)
+        super().__init__(config_plan, config_sim, scenario, planning_problem, log_path, work_dir, msg_logger)
 
         # **************************
         # Cost Function Setting
         # **************************
-        cost_function = AdaptableCostFunction(rp=self, configuration=self.config)
+        cost_function = AdaptableCostFunction(rp=self, configuration=self.config_plan)
         self.set_cost_function(cost_function=cost_function)
 
-    @property
-    def coordinate_system(self) -> CoordinateSystem:
-        return self._co
-
-    @property
-    def reference_path(self):
-        return self._co.reference
-
     def set_predictions(self, predictions: dict):
+        self.use_prediction = True
         self.predictions = predictions
 
     def set_cost_function(self, cost_function):
         self.cost_function = cost_function
-        # self.logger.set_logging_header(self.config.cost.cost_weights)
+        # self.logger.set_logging_header(self.config_plan.cost.cost_weights)
 
-    def set_reference_path(self, reference_path: np.ndarray = None, coordinate_system: CoordinateSystem = None):
+    def set_reference_and_coordinate_system(self, reference_path: np.ndarray = None):
         """
         Automatically creates a curvilinear coordinate system from a given reference path or sets a given
         curvilinear coordinate system for the planner to use
         :param reference_path: reference path as polyline
         :param coordinate_system: given CoordinateSystem object which is used by the planner
         """
-        reference_path = smooth_ref_path(reference_path)
-        if coordinate_system is None:
-            assert reference_path is not None, '<set reference path>: Please provide a reference path OR a ' \
-                                               'CoordinateSystem object to the planner.'
-            self._co: CoordinateSystem = CoordinateSystem(reference_path)
-        else:
-            assert reference_path is None, '<set reference path>: Please provide a reference path OR a ' \
-                                           'CoordinateSystem object to the planner.'
-            self._co: CoordinateSystem = coordinate_system
-            self.set_new_ref_path = True
+        self.coordinate_system = CoordinateSystem(reference=reference_path, config_sim=self.config_sim)
+        self.set_new_ref_path = True
 
     def plan(self) -> tuple:
         """
@@ -89,12 +70,11 @@ class ReactivePlannerPython(Planner):
         :return: Optimal trajectory as tuple
         """
 
-        msg_logger.debug('Initial state is: lon = {} / lat = {}'.format(self.x_cl[0], self.x_cl[1]))
-        msg_logger.debug('Desired velocity is {} m/s'.format(self._desired_speed))
+        self.msg_logger.debug('Initial state is: lon = {} / lat = {}'.format(self.x_cl[0], self.x_cl[1]))
+        self.msg_logger.debug('Desired velocity is {} m/s'.format(self.desired_velocity))
 
         # Initialization of while loop
         optimal_trajectory = None
-        trajectory_pair = None
         t0 = time.time()
 
         # Initial index of sampling set to use
@@ -108,7 +88,8 @@ class ReactivePlannerPython(Planner):
 
             bundle = self._create_trajectory_bundle(self.x_cl[0], self.x_cl[1], self.cost_function, samp_level=samp_level)
 
-            self.logger.trajectory_number = self.x_0.time_step
+            if self.logger:
+                self.logger.trajectory_number = self.x_0.time_step
 
             optimal_trajectory = self._get_optimal_trajectory(bundle, samp_level)
 
@@ -117,22 +98,23 @@ class ReactivePlannerPython(Planner):
 
         planning_time = time.time() - t0
 
-        msg_logger.debug('Rejected {} infeasible trajectories due to kinematics'.format(
+        self.msg_logger.debug('Rejected {} infeasible trajectories due to kinematics'.format(
             self._infeasible_count_kinematics))
-        msg_logger.debug('Rejected {} infeasible trajectories due to collisions'.format(
+        self.msg_logger.debug('Rejected {} infeasible trajectories due to collisions'.format(
             self.infeasible_count_collision))
 
         # ******************************************
         # Update Trajectory Pair & Commonroad Object
         # ******************************************
-        trajectory_pair = self._compute_trajectory_pair(optimal_trajectory) if optimal_trajectory is not None else None
-        if trajectory_pair is not None:
-            current_ego_vehicle = self.convert_state_list_to_commonroad_object(trajectory_pair[0].state_list)
+        self.trajectory_pair = self._compute_trajectory_pair(optimal_trajectory) if optimal_trajectory is not None else None
+        if self.trajectory_pair is not None:
+            current_ego_vehicle = self.convert_state_list_to_commonroad_object(self.trajectory_pair[0].state_list)
             self.set_ego_vehicle_state(current_ego_vehicle=current_ego_vehicle)
 
         if optimal_trajectory is None and self.x_0.velocity <= 0.1:
-            msg_logger.warning('Planning standstill for the current scenario')
-            self.logger.trajectory_number = self.x_0.time_step
+            self.msg_logger.warning('Planning standstill for the current scenario')
+            if self.logger:
+                self.logger.trajectory_number = self.x_0.time_step
             optimal_trajectory = self._compute_standstill_trajectory()
 
         # ************************************
@@ -145,7 +127,7 @@ class ReactivePlannerPython(Planner):
 
         self.plan_postprocessing(optimal_trajectory=optimal_trajectory, planning_time=planning_time)
 
-        return trajectory_pair
+        return self.trajectory_pair
 
     def _create_trajectory_bundle(self, x_0_lon: np.array, x_0_lat: np.array, cost_function, samp_level: int) -> TrajectoryBundle:
         """
@@ -196,7 +178,7 @@ class ReactivePlannerPython(Planner):
         trajectory_bundle = TrajectoryBundle(trajectories, cost_function=cost_function,
                                              multiproc=self._multiproc, num_workers=self._num_workers)
         self._total_count = len(trajectory_bundle._trajectory_bundle)
-        msg_logger.debug('%s trajectories sampled' % len(trajectory_bundle._trajectory_bundle))
+        self.msg_logger.debug('%s trajectories sampled' % len(trajectory_bundle._trajectory_bundle))
         return trajectory_bundle
 
     def _get_optimal_trajectory(self, trajectory_bundle: TrajectoryBundle, samp_lvl):
@@ -253,10 +235,10 @@ class ReactivePlannerPython(Planner):
         self.infeasible_kinematics_percentage = float(len(feasible_trajectories) / len(trajectories_all)) * 100
 
         # print size of feasible trajectories and infeasible trajectories
-        msg_logger.debug(
+        self.msg_logger.debug(
             'Found {} feasible trajectories and {} infeasible trajectories'.format(str(len(feasible_trajectories)),
                                                                                    str(len(infeasible_trajectories))))
-        msg_logger.debug('Percentage of valid & feasible trajectories: %s %%' % str(self.infeasible_kinematics_percentage))
+        self.msg_logger.debug('Percentage of valid & feasible trajectories: %s %%' % str(self.infeasible_kinematics_percentage))
 
         # for visualization store all trajectories with validity level based on kinematic validity
         if self._draw_traj_set or self.save_all_traj:
@@ -282,7 +264,7 @@ class ReactivePlannerPython(Planner):
                 self.set_risk_costs(traje)
             sort_risk = sorted(feasible_trajectories, key=lambda traj: traj._ego_risk + traj._obst_risk,
                                reverse=False)
-            msg_logger.warning("No optimal trajectory available. Select lowest risk trajectory!")
+            self.msg_logger.warning("No optimal trajectory available. Select lowest risk trajectory!")
             optimal_trajectory = sort_risk[0]
             return optimal_trajectory
 
@@ -391,13 +373,13 @@ class ReactivePlannerPython(Planner):
             if not self._draw_traj_set:
                 # pre-filter with quick underapproximative check for feasibility
                 if np.any(np.abs(s_acceleration) > self.vehicle_params.a_max):
-                    msg_logger.debug(f"Acceleration {np.max(np.abs(s_acceleration))}")
+                    self.msg_logger.debug(f"Acceleration {np.max(np.abs(s_acceleration))}")
                     trajectory.feasible = False
                     infeasible_invalid_count_kinematics[1] += 1
                     trajectory_list.append(trajectory)
                     continue
                 if np.any(s_velocity < -_EPS):
-                    msg_logger.debug(f"Velocity {min(s_velocity)} at step")
+                    self.msg_logger.debug(f"Velocity {min(s_velocity)} at step")
                     trajectory.feasible = False
                     infeasible_invalid_count_kinematics[2] += 1
                     trajectory_list.append(trajectory)
@@ -430,12 +412,12 @@ class ReactivePlannerPython(Planner):
                     dpp = d_acceleration[i]
 
                 # factor for interpolation
-                s_idx = np.argmax(self._co.ref_pos > s[i]) - 1
-                if s_idx + 1 >= len(self._co.ref_pos):
+                s_idx = np.argmax(self.coordinate_system.ref_pos > s[i]) - 1
+                if s_idx + 1 >= len(self.coordinate_system.ref_pos):
                     trajectory.feasible = False
                     infeasible_count_kinematics_traj[3] = 1
                     break
-                s_lambda = (s[i] - self._co.ref_pos[s_idx]) / (self._co.ref_pos[s_idx + 1] - self._co.ref_pos[s_idx])
+                s_lambda = (s[i] - self.coordinate_system.ref_pos[s_idx]) / (self.coordinate_system.ref_pos[s_idx + 1] - self.coordinate_system.ref_pos[s_idx])
 
                 # compute curvilinear (theta_cl) and global Cartesian (theta_gl) orientation
                 if s_velocity[i] > 0.001:
@@ -445,10 +427,10 @@ class ReactivePlannerPython(Planner):
 
                     theta_gl[i] = theta_cl[i] + interpolate_angle(
                         s[i],
-                        self._co.ref_pos[s_idx],
-                        self._co.ref_pos[s_idx + 1],
-                        self._co.ref_theta[s_idx],
-                        self._co.ref_theta[s_idx + 1])
+                        self.coordinate_system.ref_pos[s_idx],
+                        self.coordinate_system.ref_pos[s_idx + 1],
+                        self.coordinate_system.ref_theta[s_idx],
+                        self.coordinate_system.ref_theta[s_idx + 1])
                 else:
                     if self._LOW_VEL_MODE:
                         # dp = velocity w.r.t. to travelled arclength (s)
@@ -456,26 +438,26 @@ class ReactivePlannerPython(Planner):
 
                         theta_gl[i] = theta_cl[i] + interpolate_angle(
                             s[i],
-                            self._co.ref_pos[s_idx],
-                            self._co.ref_pos[s_idx + 1],
-                            self._co.ref_theta[s_idx],
-                            self._co.ref_theta[s_idx + 1])
+                            self.coordinate_system.ref_pos[s_idx],
+                            self.coordinate_system.ref_pos[s_idx + 1],
+                            self.coordinate_system.ref_theta[s_idx],
+                            self.coordinate_system.ref_theta[s_idx + 1])
                     else:
                         # in stillstand (s_velocity~0) and High velocity mode: assume vehicle keeps global orientation
                         theta_gl[i] = self.x_0.orientation if i == 0 else theta_gl[i - 1]
 
                         theta_cl[i] = theta_gl[i] - interpolate_angle(
                             s[i],
-                            self._co.ref_pos[s_idx],
-                            self._co.ref_pos[s_idx + 1],
-                            self._co.ref_theta[s_idx],
-                            self._co.ref_theta[s_idx + 1])
+                            self.coordinate_system.ref_pos[s_idx],
+                            self.coordinate_system.ref_pos[s_idx + 1],
+                            self.coordinate_system.ref_theta[s_idx],
+                            self.coordinate_system.ref_theta[s_idx + 1])
 
                 # Interpolate curvature of reference path k_r at current position
-                k_r = (self._co.ref_curv[s_idx + 1] - self._co.ref_curv[s_idx]) * s_lambda + self._co.ref_curv[s_idx]
+                k_r = (self.coordinate_system.ref_curv[s_idx + 1] - self.coordinate_system.ref_curv[s_idx]) * s_lambda + self.coordinate_system.ref_curv[s_idx]
                 # Interpolate curvature rate of reference path k_r_d at current position
-                k_r_d = (self._co.ref_curv_d[s_idx + 1] - self._co.ref_curv_d[s_idx]) * s_lambda + \
-                        self._co.ref_curv_d[s_idx]
+                k_r_d = (self.coordinate_system.ref_curv_d[s_idx + 1] - self.coordinate_system.ref_curv_d[s_idx]) * s_lambda + \
+                        self.coordinate_system.ref_curv_d[s_idx]
 
                 # compute global curvature (see appendix A of Moritz Werling's PhD thesis)
                 oneKrD = (1 - k_r * d[i])
@@ -554,14 +536,14 @@ class ReactivePlannerPython(Planner):
             if trajectory.feasible or self._draw_traj_set:
                 for i in range(0, len(s)):
                     # compute (global) Cartesian position
-                    pos: np.ndarray = self._co.convert_to_cartesian_coords(s[i], d[i])
+                    pos: np.ndarray = self.coordinate_system.convert_to_cartesian_coords(s[i], d[i])
                     if pos is not None:
                         x[i] = pos[0]
                         y[i] = pos[1]
                     else:
                         trajectory.valid = False
                         infeasible_count_kinematics_traj[9] = 1
-                        msg_logger.debug("Out of projection domain")
+                        self.msg_logger.debug("Out of projection domain")
                         break
 
                 if trajectory.feasible or self._draw_traj_set:
@@ -604,10 +586,10 @@ class ReactivePlannerPython(Planner):
         x_0_lon, x_0_lat = self.x_cl
 
         # create artificial standstill trajectory
-        msg_logger.debug('Adding standstill trajectory')
-        msg_logger.debug("x_0 is {}".format(x_0))
-        msg_logger.debug("x_0_lon is {}".format(x_0_lon))
-        msg_logger.debug("x_0_lon is {}".format(type(x_0_lon)))
+        self.msg_logger.debug('Adding standstill trajectory')
+        self.msg_logger.debug("x_0 is {}".format(x_0))
+        self.msg_logger.debug("x_0_lon is {}".format(x_0_lon))
+        self.msg_logger.debug("x_0_lon is {}".format(type(x_0_lon)))
 
         # create lon and lat polynomial
         traj_lon = QuarticTrajectory(tau_0=0, delta_tau=self.horizon, x_0=np.asarray(x_0_lon),
@@ -632,9 +614,9 @@ class ReactivePlannerPython(Planner):
 
         # create Curvilinear trajectory sample
         # compute orientation in curvilinear coordinate frame
-        s_idx = np.argmax(self._co.ref_pos > x_0_lon[0]) - 1
-        ref_theta = np.unwrap(self._co.ref_theta)
-        theta_cl = x_0.orientation - interpolate_angle(x_0_lon[0], self._co.ref_pos[s_idx], self._co.ref_pos[s_idx + 1],
+        s_idx = np.argmax(self.coordinate_system.ref_pos > x_0_lon[0]) - 1
+        ref_theta = np.unwrap(self.coordinate_system.ref_theta)
+        theta_cl = x_0.orientation - interpolate_angle(x_0_lon[0], self.coordinate_system.ref_pos[s_idx], self.coordinate_system.ref_pos[s_idx + 1],
                                                        ref_theta[s_idx], ref_theta[s_idx + 1])
 
         p.curvilinear = CurviLinearSample(np.repeat(x_0_lon[0], self.N), np.repeat(x_0_lat[0], self.N),
@@ -644,7 +626,7 @@ class ReactivePlannerPython(Planner):
         return p
 
     def _create_end_point_trajectory_bundle(self, x_0_lon, x_0_lat, stop_point_s, cost_function, samp_level):
-        msg_logger.debug('sampling stopping trajectory at stop line')
+        self.msg_logger.debug('sampling stopping trajectory at stop line')
         # reset cost statistic
         self._min_cost = 10 ** 9
         self._max_cost = 0
@@ -684,58 +666,8 @@ class ReactivePlannerPython(Planner):
         trajectory_bundle = TrajectoryBundle(trajectories, cost_function=cost_function,
                                              multiproc=self._multiproc, num_workers=self._num_workers)
         self._total_count = len(trajectory_bundle._trajectory_bundle)
-        msg_logger.debug('%s trajectories sampled' % len(trajectory_bundle._trajectory_bundle))
+        self.msg_logger.debug('%s trajectories sampled' % len(trajectory_bundle._trajectory_bundle))
 
         return trajectory_bundle
 
-    def check_collision(self, ego_vehicle):
 
-        ego = pycrcc.TimeVariantCollisionObject((self.x_0.time_step))
-        ego.append_obstacle(pycrcc.RectOBB(0.5 * self.vehicle_params.length, 0.5 * self.vehicle_params.width,
-                                           ego_vehicle.initial_state.orientation,
-                                           ego_vehicle.initial_state.position[0],
-                                           ego_vehicle.initial_state.position[1]))
-
-        if not self.collision_checker.collide(ego):
-            return False
-        else:
-            try:
-                goal_position = []
-
-                if self.goal_checker.goal.state_list[0].has_value("position"):
-                    for x in self.reference_path:
-                        if self.goal_checker.goal.state_list[0].position.contains_point(x):
-                            goal_position.append(x)
-                    s_goal_1, d_goal_1 = self._co.convert_to_curvilinear_coords(goal_position[0][0],
-                                                                                goal_position[0][1])
-                    s_goal_2, d_goal_2 = self._co.convert_to_curvilinear_coords(goal_position[-2][0],
-                                                                                goal_position[-2][1])
-                    s_goal = min(s_goal_1, s_goal_2)
-                    s_start, d_start = self._co.convert_to_curvilinear_coords(
-                        self.planning_problem.initial_state.position[0],
-                        self.planning_problem.initial_state.position[1])
-                    s_current, d_current = self._co.convert_to_curvilinear_coords(self.x_0.position[0],
-                                                                                  self.x_0.position[1])
-                    progress = ((s_current - s_start) / (s_goal - s_start))
-                elif "time_step" in self.goal_checker.goal.state_list[0].attributes:
-                    progress = ((self.x_0.time_step - 1) / self.goal_checker.goal.state_list[0].time_step.end)
-                else:
-                    msg_logger.error('Could not calculate progress')
-                    progress = None
-            except:
-                progress = None
-                msg_logger.error('Could not calculate progress')
-
-            collision_obj = self.collision_checker.find_all_colliding_objects(ego)[0]
-            if isinstance(collision_obj, pycrcc.TimeVariantCollisionObject):
-                obj = collision_obj.obstacle_at_time((self.x_0.time_step - 1))
-                center = obj.center()
-                last_center = collision_obj.obstacle_at_time(self.x_0.time_step - 2).center()
-                r_x = obj.r_x()
-                r_y = obj.r_y()
-                orientation = obj.orientation()
-                self.logger.log_collision(True, self.vehicle_params.length, self.vehicle_params.width, progress, center,
-                                          last_center, r_x, r_y, orientation)
-            else:
-                self.logger.log_collision(False, self.vehicle_params.length, self.vehicle_params.width, progress)
-            return True

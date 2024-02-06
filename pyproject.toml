@@ -1,8 +1,16 @@
 [tool.poetry]
 name = "frenetix-motion-planner"
-version = "2023.3"
-description = "Frenetix Motion Planner: Sampling-based Frenet Planner"
-authors = ["Institute of Automotive Technology, Technical University of Munich"]
+version = "2024.1"
+description = "Frenetix Motion Planner: Sampling-based Frenet Planner & Multi-agent CommonRoad Scenario Handler"
+license = "LGPL-3.0-or-later"
+authors = [
+    "Rainer Trauth <rainer.trauth@tum.de>",
+    "Marc Kaufeld <marc.kaufeld@tum.de>",
+]
+maintainers = [
+    "Rainer Trauth <rainer.trauth@tum.de>",
+    "Marc Kaufeld <marc.kaufeld@tum.de>",
+]
 readme = "README.md"
 
 packages = [
@@ -10,48 +18,49 @@ packages = [
     { include = "cr_scenario_handler" },
     { include = "risk_assessment" },
     { include = "wale_net_lite" },
+    { include = "behavior_planner" },
 ]
 
 [tool.poetry.dependencies]
 
-# NOTE: commonroad-drivability-checker does not support Python >= 3.11 currently
-# (it will be supported in the next release after 2023.1)
-# python = ">=3.9,<3.13"
-
 python = ">=3.9,<3.11"
 
-matplotlib = "<=3.7.1"
-networkx = "^3.1"
+# internal, will be resolved when we publish it.
+commonroad-route-planner = "^2022.3"
+commonroad-drivability-checker = "^2023.1"
+
+frenetix = "==0.1.3"
+frenetix-occlusion = ">=2024.1.1"
+
+wale-net = ">=3.0.3"
+matplotlib = "^3.8.1"
 numpy = "^1.24.2"
 methodtools = "^0.4.7"
 omegaconf = "^2.1.1"
-scipy = "^1.7.1"
-onnxruntime = "^1.15.1"
+scipy = "^1.9.3"
+onnxruntime = "^1.16.3"
 pygeos = "^0.14"
 imageio = "^2.31.2"
-shapely = "^2.0.1"
-wheel = ">=0.37.0"
-pandas = ">=2.0.1"
-triangle = ">=20230923"
-"ruamel.yaml" = "^0.17.32"
+shapely = "^2.0.2"
+wheel = "^0.38.4"
+pandas = "^2.0.3"
+triangle = ">=20200424"
+psutil = ">=5.9.6"
 
-commonroad-route-planner = ">=2022.3"
 commonroad-io = "==2023.2"
 commonroad-vehicle-models = "^3.0.2"
-commonroad-helper-functions = "^1.0.0"
-
-commonroad-drivability-checker = "2023.1"
-
-frenetix = ">=0.1.0"
 
 [tool.poetry.group.docs]
 optional = true
 
 [tool.poetry.group.docs.dependencies]
-sphinx = ">=2.2.1"
+sphinx = ">=6.2.1"
 
 [tool.poetry.group.dev]
 optional = true
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.5.1"

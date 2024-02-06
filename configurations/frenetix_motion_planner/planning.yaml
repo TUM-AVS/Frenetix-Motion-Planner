@@ -1,0 +1,32 @@
+###################################
+#        Planning Settings        #
+###################################
+
+# planner time step (in s)
+dt: 0.1
+# planning time horizon (in s)
+planning_horizon: 3.0
+# velocity threshold (in m/s) for switching to low velocity mode
+low_vel_mode_threshold: 2.0
+
+# emergency trajectory mode
+emergency_mode: "stopping"  # "stopping" or "min_risk" if None of both, "min_risk" is activated
+
+###################################
+#        Sampling Settings        #
+###################################
+
+# minimum time sampling in s (t_max is given by planning horizon)
+t_min: 1.1
+
+# velocity sampling interval
+v_min: 0 # is calculated with current velodity & acc limits
+v_max: 0
+
+# lateral sampling interval
+d_min: -3
+d_max: 3
+
+# sampling density minimum and maximum
+sampling_min: 2
+sampling_max: 3

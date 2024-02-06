@@ -1,179 +1,179 @@
-__author__ = "Maximilian Streubel, Rainer Trauth"
+__author__ = "Rainer Trauth, Marc Kaufeld"
 __copyright__ = "TUM Institute of Automotive Technology"
 __version__ = "1.0"
 __maintainer__ = "Rainer Trauth"
 __email__ = "rainer.trauth@tum.de"
 __status__ = "Beta"
 
-import traceback
+import os
 from copy import deepcopy
-from typing import List
 import numpy as np
-
-from commonroad.scenario.scenario import Scenario
-from commonroad.scenario.obstacle import DynamicObstacle
+from commonroad.geometry.shape import Rectangle, ShapeGroup
 from commonroad.planning.planning_problem import PlanningProblem
-from commonroad.scenario.trajectory import Trajectory
-
-from commonroad_dc import pycrcc
-
-from cr_scenario_handler.utils.configuration import Configuration
-
-from frenetix_motion_planner.reactive_planner_cpp import ReactivePlannerCpp
-from frenetix_motion_planner.state import ReactivePlannerState
-from frenetix_motion_planner.utility import helper_functions as hf
-
+from commonroad.scenario.obstacle import DynamicObstacle, ObstacleType
+from commonroad.scenario.scenario import Scenario
 from commonroad_route_planner.route_planner import RoutePlanner
 
-from behavior_planner.behavior_module import BehaviorModule
-
+import cr_scenario_handler.utils.multiagent_logging as lh
 from cr_scenario_handler.planner_interfaces.planner_interface import PlannerInterface
-from cr_scenario_handler.utils.collision_report import coll_report
+import cr_scenario_handler.utils.goalcheck as gc
+import cr_scenario_handler.utils.helper_functions as hf
+from cr_scenario_handler.utils.utils_coordinate_system import smooth_ref_path, extend_ref_path
+from cr_scenario_handler.utils.velocity_planner import VelocityPlanner
+
+from frenetix_motion_planner.reactive_planner import ReactivePlannerPython
+from frenetix_motion_planner.reactive_planner_cpp import ReactivePlannerCpp
+from frenetix_motion_planner.state import ReactivePlannerState
+
+from frenetix_occlusion.interface import FOInterface
+
+# msg_logger = logging.getLogger("Message_logger")
 
 
 class FrenetPlannerInterface(PlannerInterface):
 
-    def __init__(self, config: Configuration, scenario: Scenario,
+    def __init__(self, agent_id: int, config_planner, config_sim, scenario: Scenario,
                  planning_problem: PlanningProblem, log_path: str, mod_path: str):
         """ Class for using the frenetix_motion_planner Frenet planner with the cr_scenario_handler.
 
         Implements the PlannerInterface.
 
-        :param config: The configuration object.
+        :param config_planner: The configuration object for the trajectory planner.
+        :param config_sim: The configuration object for the simulation framework
         :param scenario: The scenario to be solved. May not contain the ego obstacle.
         :param planning_problem: The planning problem of the ego vehicle.
         :param log_path: Path for writing planner-specific log files to.
         :param mod_path: Working directory of the planner.
         """
-        self.config = config
+        self.config_plan = config_planner
+        self.config_sim = config_sim
         self.scenario = scenario
-        self.predictions = None
+        self.id = agent_id
+        self.config_sim.simulation.ego_agent_id = agent_id
+        self.DT = self.config_plan.planning.dt
+
         self.planning_problem = planning_problem
         self.log_path = log_path
         self.mod_path = mod_path
 
+        # *************************************
+        # Message Logger of Run
+        # *************************************
+        # self.msg_logger = logging.getLogger("Message_logger_" +str(self.id ))
+        self.msg_logger = lh.logger_initialization(self.config_plan, log_path, "Message_logger_" + str(self.id))
+        self.msg_logger.critical("Start Planner Vehicle ID: " + str(self.id))
+        # Init and Goal State
+
         # Initialize planner
-        self.planner = ReactivePlannerCpp(config, scenario, planning_problem,
-                                       log_path, mod_path)
+        self.planner = ReactivePlannerCpp(self.config_plan, self.config_sim, scenario, planning_problem, log_path, mod_path, self.msg_logger) \
+            if self.config_plan.debug.use_cpp else \
+              ReactivePlannerPython(self.config_plan, self.config_sim, scenario, planning_problem, log_path, mod_path, self.msg_logger)
+
+        problem_init_state = planning_problem.initial_state
+
+        if not hasattr(problem_init_state, 'acceleration'):
+            problem_init_state.acceleration = 0.
+        x_0 = deepcopy(problem_init_state)
+
+        shape = Rectangle(self.planner.vehicle_params.length, self.planner.vehicle_params.width)
+        ego_vehicle = DynamicObstacle(agent_id, ObstacleType.CAR, shape, x_0, None)
+        self.planner.set_ego_vehicle_state(current_ego_vehicle=ego_vehicle)
 
         # Set initial state and curvilinear state
         self.x_0 = ReactivePlannerState.create_from_initial_state(
             deepcopy(planning_problem.initial_state),
-            config.vehicle.wheelbase,
-            config.vehicle.wb_rear_axle
+            self.config_sim.vehicle.wheelbase,
+            self.config_sim.vehicle.wb_rear_axle
         )
+        self.planner.record_state_and_input(self.x_0)
+
         self.x_cl = None
-
-        self.planner.set_x_0(self.x_0)
-
-        self.desired_velocity = self.x_0.velocity
+        self.desired_velocity = None
+        self.occlusion_module = None
+        self.behavior_module = None
+        self.route_planner = None
 
         # Set reference path
-        self.use_behavior_planner = False
-        if not self.use_behavior_planner:
-            route_planner = RoutePlanner(scenario, planning_problem)
-            self.ref_path = route_planner.plan_routes().retrieve_first_route().reference_path
+        if not self.config_sim.behavior.use_behavior_planner:
+            self.route_planner = RoutePlanner(scenario=scenario, planning_problem=planning_problem)
+            self.reference_path = self.route_planner.plan_routes().retrieve_first_route().reference_path
+            #
+            try:
+                self.reference_path, _ = self.route_planner.extend_reference_path_at_start(reference_path=self.reference_path,
+                                                                                  initial_position_cart=self.x_0.position,
+                                                                                  additional_lenght_in_meters=10.0)
+            except:
+                self.reference_path = extend_ref_path(self.reference_path, self.x_0.position)
         else:
-            # Load behavior planner
-            self.behavior_module = BehaviorModule(scenario=self.scenario, planning_problem=planning_problem,
-                                                  init_ego_state=self.x_0, dt=self.scenario.dt, config=config)
-            self.ref_path = self.behavior_module.reference_path
+            raise NotImplementedError
 
-        self.planner.set_reference_path(self.ref_path)
+        # TODO: Achieve a stable route planner version
+        self.reference_path = smooth_ref_path(self.reference_path)
 
-        # Set planning problem
-        goal_area = hf.get_goal_area_shape_group(
-            planning_problem=planning_problem, scenario=scenario
-        )
-        self.planner.set_goal_area(goal_area)
-        self.planner.set_planning_problem(planning_problem)
 
-    def get_all_traj(self):
+        end_velocity = getattr(getattr(self.planning_problem.goal.state_list[0], 'velocity', None), 'end', 10)
+        end_pos = getattr(self.planning_problem.goal.state_list[0], 'position', None)
+        if end_pos:
+            center = end_pos.center if not type(end_pos) == ShapeGroup else end_pos.shapes[0].center
+            diff = np.min(np.linalg.norm(self.reference_path - center, axis=1))
+        else:
+            diff = 0
+        additional_length_in_meters = diff + end_velocity * (config_planner.planning.planning_horizon + 1.0)
+
+        self.reference_path, _ = hf.extend_reference_path_at_end(reference_path=self.reference_path,
+                                                                 final_position=self.reference_path[-1],
+                                                                 additional_lenght_in_meters=additional_length_in_meters)
+
+        self.goal_area = gc.get_goal_area_shape_group(planning_problem=planning_problem, scenario=scenario)
+
+        # **************************
+        # Initialize Occlusion Module
+        # **************************
+        if self.config_sim.occlusion.use_occlusion_module:
+            self.occlusion_module = FOInterface(scenario, self.reference_path, self.config_sim.vehicle, self.DT,
+                                                os.path.join(self.mod_path, "configurations", "simulation", "occlusion.yaml"))
+
+        # **************************
+        # Set External Planner Setups
+        # **************************
+        self.planner.update_externals(x_0=self.x_0, reference_path=self.reference_path, goal_area=self.goal_area,
+                                      occlusion_module=self.occlusion_module)
+        self.x_cl = self.planner.x_cl
+
+        # ***************************
+        # Initialize Velocity Planner
+        # ***************************
+        self.velocity_planner = VelocityPlanner(scenario=scenario, planning_problem=planning_problem,
+                                                coordinate_system=self.coordinate_system)
+
+    @property
+    def all_trajectories(self):
         """Return the sampled trajectory bundle for plotting purposes."""
         return self.planner.all_traj
 
-    def get_ref_path(self):
-        """Return the reference path for plotting purposes."""
-        return self.planner.reference_path
+    @property
+    def record_input_list(self):
+        return self.planner.record_input_list
 
-    def check_collision(self, ego_vehicle_list: List[DynamicObstacle], timestep: int):
-        """ Check for collisions with the ego vehicle.
+    @property
+    def record_state_list(self):
+        return self.planner.record_state_list
 
-        Adapted from ReactivePlanner.check_collision to allow using ego obstacles
-        that contain the complete (past and future) trajectory.
+    @property
+    def vehicle_history(self):
+        return self.planner.ego_vehicle_history
 
-        :param ego_vehicle_list: List containing the ego obstacles from at least
-            the last two time steps.
-        :param timestep: Time step to check for collisions at.
+    @property
+    def coordinate_system(self):
+        return self.planner.coordinate_system
 
-        :return: True iff there was a collision.
-        """
+    @property
+    def optimal_trajectory(self):
+        return self.planner.optimal_trajectory
 
-        ego_vehicle = ego_vehicle_list[-1]
-
-        ego = pycrcc.TimeVariantCollisionObject((timestep + 1))
-        ego.append_obstacle(
-            pycrcc.RectOBB(0.5 * self.planner.vehicle_params.length, 0.5 * self.planner.vehicle_params.width,
-                           ego_vehicle.state_at_time(timestep).orientation,
-                           ego_vehicle.state_at_time(timestep).position[0],
-                           ego_vehicle.state_at_time(timestep).position[1]))
-
-        if not self.planner.collision_checker.collide(ego):
-            return False
-        else:
-            try:
-                goal_position = []
-
-                if self.planner.goal_checker.goal.state_list[0].has_value("position"):
-                    for x in self.planner.reference_path:
-                        if self.planner.goal_checker.goal.state_list[0].position.contains_point(x):
-                            goal_position.append(x)
-                    s_goal_1, d_goal_1 = self.planner._co.convert_to_curvilinear_coords(
-                        goal_position[0][0],
-                        goal_position[0][1])
-                    s_goal_2, d_goal_2 = self.planner._co.convert_to_curvilinear_coords(
-                        goal_position[-1][0],
-                        goal_position[-1][1])
-                    s_goal = min(s_goal_1, s_goal_2)
-                    s_start, d_start = self.planner._co.convert_to_curvilinear_coords(
-                        self.planner.planning_problem.initial_state.position[0],
-                        self.planner.planning_problem.initial_state.position[1])
-                    s_current, d_current = self.planner._co.convert_to_curvilinear_coords(
-                        ego_vehicle.state_at_time(timestep).position[0],
-                        ego_vehicle.state_at_time(timestep).position[1])
-                    progress = ((s_current - s_start) / (s_goal - s_start))
-                elif "time_step" in self.planner.goal_checker.goal.state_list[0].attributes:
-                    progress = (timestep - 1 / self.planner.goal_checker.goal.state_list[0].time_step.end)
-                else:
-                    print('Could not calculate progress')
-                    progress = None
-            except:
-                progress = None
-                print('Could not calculate progress')
-                traceback.print_exc()
-
-            collision_obj = self.planner.collision_checker.find_all_colliding_objects(ego)[0]
-            if isinstance(collision_obj, pycrcc.TimeVariantCollisionObject):
-                obj = collision_obj.obstacle_at_time(timestep)
-                center = obj.center()
-                last_center = collision_obj.obstacle_at_time(timestep - 1).center()
-                r_x = obj.r_x()
-                r_y = obj.r_y()
-                orientation = obj.orientation()
-                self.planner.logger.log_collision(True, self.planner.vehicle_params.length,
-                                                  self.planner.vehicle_params.width,
-                                                  progress, center,
-                                                  last_center, r_x, r_y, orientation)
-            else:
-                self.planner.logger.log_collision(False, self.planner.vehicle_params.length,
-                                                  self.planner.vehicle_params.width,
-                                                  progress)
-
-            if self.config.debug.collision_report:
-                coll_report(ego_vehicle_list, self.planner, self.scenario,
-                            self.planning_problem, timestep, self.config, self.log_path)
-
-            return True
+    @property
+    def trajectory_pair(self):
+        return self.planner.trajectory_pair
 
     def update_planner(self, scenario: Scenario, predictions: dict):
         """ Update the planner before the next time step.
@@ -184,28 +184,17 @@ class FrenetPlannerInterface(PlannerInterface):
         :param predictions: Predictions for the other obstacles in the next time steps.
         """
         self.scenario = scenario
-        self.predictions = predictions
-        self.planner.update_externals(x_0=self.x_0, x_cl=self.x_cl, scenario=scenario, predictions=predictions)
 
-        if not self.use_behavior_planner:
+        if not self.config_sim.behavior.use_behavior_planner:
             # set desired velocity
-            self.desired_velocity = hf.calculate_desired_velocity(self.scenario, self.planning_problem,
-                                                                  self.x_0, self.config.planning.dt,
-                                                                  self.desired_velocity)
-            self.planner.set_desired_velocity(self.desired_velocity, self.x_0.velocity)
+            self.desired_velocity = self.velocity_planner.calculate_desired_velocity(self.x_0, self.x_cl[0][0])
         else:
-            """-----------------------------------------Testing:---------------------------------------------"""
-            # Currently not working.
-            self.behavior_module.execute(predictions=self.predictions, ego_state=self.x_0,
-                                         time_step=self.x_0.time_step)
+            raise NotImplementedError
 
-            # set desired behavior outputs
-            self.planner.set_desired_velocity(self.behavior_module.desired_velocity, self.x_0.velocity)
-            self.planner.set_reference_path(self.behavior_module.reference_path)
+        self.planner.update_externals(scenario=scenario, x_0=self.x_0, x_cl=self.x_cl,
+                                      desired_velocity=self.desired_velocity, predictions=predictions)
 
-            """--------------------------------------- End Testing ------------------------------------------"""
-
-    def plan(self):
+    def step_interface(self, current_timestep=None):
         """ Execute one planing step.
 
         update_planner has to be called before this function.
@@ -222,26 +211,32 @@ class FrenetPlannerInterface(PlannerInterface):
                     using the vehicle center for the position: If error == 0
                 None: Otherwise
         """
-        # plan trajectory
-        optimal = self.planner.plan()
+        if self.occlusion_module is not None:
+            self.occlusion_module.evaluate_scenario(predictions=self.planner.predictions,
+                                                    ego_pos=self.x_0.position,
+                                                    ego_v=self.x_0.velocity,
+                                                    ego_orientation=self.x_0.orientation,
+                                                    ego_pos_cl=np.array([self.x_cl[0][0], self.x_cl[1][0]]),
+                                                    timestep=current_timestep,
+                                                    cosy_cl=self.coordinate_system.ccosy)
 
-        if not optimal:
+        # plan trajectory
+        optimal_trajectory_pair = self.planner.plan()
+
+        if not optimal_trajectory_pair:
             # Could not plan feasible trajectory
-            return 1, None
+            self.msg_logger.critical("No Kinematic Feasible and Optimal Trajectory Available!")
+            return None
 
         # record the new state for planner-internal logging
-        self.planner.record_state_and_input(optimal[0].state_list[1])
+        self.planner.record_state_and_input(optimal_trajectory_pair[0].state_list[1])
 
         # update init state and curvilinear state
         self.x_0 = deepcopy(self.planner.record_state_list[-1])
-        self.x_cl = (optimal[2][1], optimal[3][1])
+        self.x_cl = (optimal_trajectory_pair[2][1], optimal_trajectory_pair[3][1])
 
-        # Shift the state list to the center of the vehicle
-        shifted_state_list = []
-        for x in optimal[0].state_list:
-            shifted_state_list.append(x.shift_positions_to_center(self.config.vehicle.wb_rear_axle))
+        self.msg_logger.info(f"current time step: {current_timestep}")
+        self.msg_logger.info(f"current velocity: {self.x_0.velocity}")
+        self.msg_logger.info(f"current target velocity: {self.desired_velocity}")
 
-        shifted_trajectory = Trajectory(shifted_state_list[0].time_step,
-                                        shifted_state_list)
-        return 0, shifted_trajectory
-
+        return optimal_trajectory_pair[0]

@@ -1,28 +1,33 @@
-__author__ = "Maximilian Streubel, Rainer Trauth"
+__author__ = "Rainer Trauth, Marc Kaufeld"
 __copyright__ = "TUM Institute of Automotive Technology"
 __version__ = "1.0"
 __maintainer__ = "Rainer Trauth"
 __email__ = "rainer.trauth@tum.de"
 __status__ = "Beta"
 
+import warnings
+
 from typing import List
 
 from commonroad.geometry.shape import Rectangle
 from commonroad.prediction.prediction import TrajectoryPrediction
+from commonroad.scenario.obstacle import DynamicObstacle, ObstacleType
+from commonroad.scenario.scenario import Scenario
+from commonroad.scenario.state import State
 from commonroad.scenario.trajectory import Trajectory
 from commonroad_dc import pycrcc
 
-from commonroad.scenario.obstacle import DynamicObstacle, ObstacleType
-from commonroad.scenario.state import State
-
-from commonroad.scenario.scenario import Scenario
-
-from cr_scenario_handler.utils.configuration import Configuration, VehicleConfiguration
-from frenetix_motion_planner import prediction_helpers as ph
+from cr_scenario_handler.utils.configuration import VehicleConfiguration
 
 
-TIMEOUT = 20
-"""Timeout value used when waiting for messages during parallel execution"""
+def scenario_without_obstacle_id(scenario: Scenario, obs_ids: List[int]):
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*not contained in the scenario")
+        for obs_id in obs_ids:
+            obs = scenario.obstacle_by_id(obs_id)
+            if obs is not None:
+                scenario.remove_obstacle(obs)
+    return scenario
 
 
 def get_all_obstacle_ids(scenario: Scenario) -> list:
@@ -31,31 +36,6 @@ def get_all_obstacle_ids(scenario: Scenario) -> list:
     :param scenario: The scenario of Commonroad we use
     """
     return [obs.obstacle_id for obs in scenario.obstacles]
-
-
-def get_predictions(config: Configuration, predictor,
-                    scenario: Scenario, current_timestep: int):
-    """ Calculate the predictions for all obstacles in the scenario.
-
-    :param config: The configuration.
-    :param predictor: The prediction module object to use.
-    :param scenario: The scenario for which to calculate the predictions.
-    :param current_timestep: The timestep after which to start predicting.
-    """
-
-    if config.prediction.mode:
-        if config.prediction.mode == "walenet":
-            # Calculate predictions for all obstacles using WaleNet.
-            # The state is only used for accessing the current timestep.
-            predictions = ph.main_prediction(predictor, scenario, [obs.obstacle_id for obs in scenario.obstacles],
-                                             current_timestep, scenario.dt,
-                                             [float(config.planning.planning_horizon)])
-        else:
-            predictions = None
-    else:
-        predictions = None
-
-    return predictions
 
 
 def trajectory_to_obstacle(state_list: List[State],

@@ -370,6 +370,7 @@ class TrajectorySample(Sample):
         self.boundary_harm = None
         self._coll_detected = None
         self.actual_traj_length = None
+        self.harm_occ_module = None
 
         self.uniqueId = uniqueId
         self.costMap = {x: (0, 0) for x in costMap}

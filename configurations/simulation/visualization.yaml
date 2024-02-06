@@ -1,0 +1,37 @@
+# Global multiagent visualization
+show_plots: False
+save_plots: True
+ref_path_debug: True
+
+# evaluation:
+save_all_final_trajectories: False
+show_all_final_trajectories: False
+
+save_gif: False
+
+# plot vehicle position with x_y distance in meters. 0=Standard Plot
+plot_window_dyn: 30
+# draw obstacles with vehicle icons
+draw_icons: True
+# show vehicle ids
+show_labels: False
+# show reference path
+draw_reference_path: False
+# show predictions
+draw_predictions: False
+# show planning problem
+draw_planning_problem: True
+# show optimal calculated trajectory
+draw_calc_traj: True
+
+# List of vehicle IDs for which to create individual plots, or create them for all vehicles
+show_all_individual_plots: False
+show_specific_individual_plots: []
+save_all_individual_plots: False
+save_specific_individual_plots: []
+save_all_individual_gifs: False
+save_specific_individual_gifs: []
+show_all_individual_final_trajectories: False
+show_specific_final_trajectories: []
+save_all_final_trajectory_plots: False
+save_specific_final_trajectory_plots: []
