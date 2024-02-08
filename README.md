@@ -180,4 +180,16 @@ If you use this repository for any academic work, please cite our code:
       primaryClass={cs.RO}
 }
 ```
+- [Multi-agent Simulation Framework](https://arxiv.org/abs/2402.04720)
+```bibtex
+@misc{multiagent2024,
+      title={Investigating Driving Interactions: A Robust Multi-Agent Simulation Framework for Autonomous Vehicles}, 
+      author={Marc Kaufeld and Rainer Trauth and Johannes Betz},
+      year={2024},
+      eprint={2402.04720},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO}
+}
+```
+
 </details>
