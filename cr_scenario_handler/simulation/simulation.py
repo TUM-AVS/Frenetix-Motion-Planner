@@ -128,7 +128,8 @@ class Simulation:
 
         self.process_times = dict()
 
-        if self.config.evaluation.evaluate_simulation or self.config.evaluation.evaluate_runtime:
+        if (self.config.evaluation.evaluate_simulation or self.config.evaluation.evaluate_runtime
+                and not self.config.occlusion.use_occlusion_module):
             # if logging is activated log meta data of simulation
             self.sim_logger.log_meta(agent_ids=self.agent_id_list,
                                      original_planning_problem_id=self.original_agent_id,
@@ -188,8 +189,7 @@ class Simulation:
                            and obs.obstacle_role in allowed_roles
                            and np.linalg.norm(
             obs.initial_state.position - obs.prediction.trajectory.final_state.position) > 10
-                           and len(
-            scenario.lanelet_network.find_lanelet_by_position([obs.initial_state.position])[0]) == 1
+                           and len(scenario.lanelet_network.find_lanelet_by_position([obs.initial_state.position])[0]) == 1
                            and len(scenario.lanelet_network.find_lanelet_by_position(
             [obs.prediction.trajectory.final_state.position])) > 0]
 
@@ -406,7 +406,6 @@ class Simulation:
 
         self._predictor = ph.load_prediction(self.scenario, self.config.prediction.mode)
 
-
     def _create_agent_batches(self, config_planner):
         """ Initialize the agent batches and set up the communication queues.
 
@@ -540,7 +539,6 @@ class Simulation:
                 self._set_collision_check()
 
             self.global_timestep += 1
-            # self.process_times["simulation_steps"][self.global_timestep] = {}
             self.process_times = {}
             step_time_start = time.perf_counter()
             running = self.step_sequential_simulation()
@@ -567,7 +565,6 @@ class Simulation:
         while running:
             self.global_timestep += 1
 
-            # self.process_times["simulation_steps"][self.global_timestep] = {}
             self.process_times = {}
             step_time_start = time.perf_counter()
 

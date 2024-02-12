@@ -17,7 +17,7 @@ from commonroad.scenario.obstacle import DynamicObstacle, ObstacleType
 from commonroad.prediction.prediction import TrajectoryPrediction
 from commonroad.geometry.shape import Rectangle
 from commonroad.scenario.scenario import Scenario
-from commonroad.scenario.state import CustomState, InputState
+from commonroad.scenario.state import CustomState, InputState, InitialState
 from commonroad.scenario.trajectory import Trajectory
 
 from frenetix_motion_planner.state import ReactivePlannerState
@@ -25,7 +25,7 @@ from frenetix_motion_planner.sampling_matrix import SamplingHandler
 from frenetix_motion_planner.utility.logging_helpers import DataLoggingCosts
 from frenetix_motion_planner.trajectories import TrajectorySample
 
-from cr_scenario_handler.utils.utils_coordinate_system import CoordinateSystem, interpolate_angle
+from cr_scenario_handler.utils.utils_coordinate_system import interpolate_angle
 from cr_scenario_handler.utils import helper_functions as hf
 from cr_scenario_handler.utils.collision_check import collision_check_prediction
 
@@ -128,7 +128,9 @@ class Planner:
         self._sampling_max = config_plan.planning.sampling_max
         self.sampling_handler = SamplingHandler(dt=self.dT, max_sampling_number=config_plan.planning.sampling_max,
                                                 t_min=config_plan.planning.t_min, horizon=self.horizon,
-                                                delta_d_max=config_plan.planning.d_max, delta_d_min=config_plan.planning.d_min)
+                                                delta_d_max=config_plan.planning.d_max,
+                                                delta_d_min=config_plan.planning.d_min,
+                                                d_ego_pos=config_plan.planning.d_ego_pos)
 
         self.stopping_s = None
 
@@ -210,6 +212,8 @@ class Planner:
             self.set_reach_set(reach_set)
         if behavior is not None:
             self.set_behavior(behavior)
+        if self.sampling_handler.d_ego_pos:
+            self.sampling_handler.set_d_sampling(self.x_cl[1][0])
 
     def set_reach_set(self, reach_set):
         self.reach_set = reach_set
@@ -296,8 +300,8 @@ class Planner:
         """
         self.desired_velocity = desired_velocity
 
-        min_v = max(0.01, current_speed - 0.5 * self.vehicle_params.a_max * self.horizon)
-        max_v = min(min(current_speed + (self.vehicle_params.a_max / 7.0) * self.horizon, v_limit),
+        min_v = max(0.001, current_speed - 0.5 * self.vehicle_params.a_max * self.horizon)
+        max_v = min(min(current_speed + (self.vehicle_params.a_max / 6.0) * self.horizon, v_limit),
                     self.vehicle_params.v_max)
 
         self.sampling_handler.set_v_sampling(min_v, max_v)
@@ -497,7 +501,17 @@ class Planner:
         shape = Rectangle(self.vehicle_params.length, self.vehicle_params.width)
         # get trajectory prediction
         prediction = TrajectoryPrediction(trajectory, shape)
-        return DynamicObstacle(obstacle_id, ObstacleType.CAR, shape, trajectory.state_list[0], prediction)
+
+        init_state = trajectory.state_list[0]
+        initial_state = InitialState(position=init_state.position,
+                                     orientation=init_state.orientation,
+                                     velocity=init_state.velocity,
+                                     acceleration=init_state.acceleration,
+                                     yaw_rate=init_state.yaw_rate,
+                                     slip_angle=0.0,
+                                     time_step=init_state.time_step)
+
+        return DynamicObstacle(obstacle_id, ObstacleType.CAR, shape, initial_state, prediction)
 
     def create_coll_object(self, trajectory, vehicle_params, ego_state):
         """Create a collision_object of the trajectory for collision checking with road
@@ -617,7 +631,7 @@ class Planner:
 
         return x_0_lon, x_0_lat
 
-    def plan_postprocessing(self, optimal_trajectory, planning_time):
+    def plan_postprocessing(self, optimal_trajectory, planning_time, replanning_counter=0):
         # **************************
         # Logging
         # **************************
@@ -625,7 +639,8 @@ class Planner:
             self.logger.log(optimal_trajectory, time_step=self.x_0.time_step,
                             infeasible_kinematics=self._infeasible_count_kinematics,
                             percentage_kinematics=self.infeasible_kinematics_percentage, planning_time=planning_time,
-                            ego_vehicle=self.ego_vehicle_history[-1], desired_velocity=self.desired_velocity)
+                            ego_vehicle=self.ego_vehicle_history[-1], desired_velocity=self.desired_velocity,
+                            replanning_counter=replanning_counter)
             self.logger.log_predicition(self.predictions)
         if self.save_all_traj and self.logger:
             self.logger.log_all_trajectories(self.all_traj, self.x_0.time_step)

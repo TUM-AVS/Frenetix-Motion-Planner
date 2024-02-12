@@ -11,6 +11,7 @@ import numpy as np
 
 from commonroad.scenario.state import KSState, FloatExactOrInterval, InitialState
 
+
 @dataclass(eq=False)
 class ReactivePlannerState(KSState):
     """

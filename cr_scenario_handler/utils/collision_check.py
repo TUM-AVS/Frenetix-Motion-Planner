@@ -124,9 +124,9 @@ def collision_check_prediction(
         bool: True if the trajectory collides with a prediction.
     """
     # check every obstacle in the predictions
-    for obstacle in scenario.obstacles:  #list(predictions.keys()):
+    for obstacle in scenario.obstacles:
         obstacle_id = obstacle.obstacle_id
-        if obstacle_id not in predictions or obstacle.state_at_time(time_step).velocity > 2:
+        if obstacle_id not in predictions or obstacle.state_at_time(time_step).velocity > 5:
             continue
         # check if the obstacle is not a rectangle (only shape with attribute length)
         if not hasattr(scenario.obstacle_by_id(obstacle_id).obstacle_shape, 'length'):

@@ -1,7 +1,7 @@
 # Global multiagent visualization
 show_plots: False
 save_plots: True
-ref_path_debug: True
+ref_path_debug: False
 
 # evaluation:
 save_all_final_trajectories: False

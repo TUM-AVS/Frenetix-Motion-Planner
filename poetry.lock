@@ -285,13 +285,13 @@ shapely = ">=1.6.4"
 
 [[package]]
 name = "commonroad-io"
-version = "2023.2"
+version = "2023.4"
 description = "Python tool to read, write, and visualize CommonRoad scenarios and solutions for automated vehicles."
 optional = false
 python-versions = ">=3.8,<4.0"
 files = [
-    {file = "commonroad_io-2023.2-py3-none-any.whl", hash = "sha256:f42fe19d2e06f67da073cad001ca2b594723231966988c8d6b3afa8ae39d0513"},
-    {file = "commonroad_io-2023.2.tar.gz", hash = "sha256:68c56bf2d0b615991c825ecf85638a56e1f789aab3eea76c90d46883e9b6c8b1"},
+    {file = "commonroad_io-2023.4-py3-none-any.whl", hash = "sha256:7952081244eb8729d49f5ca9eec7d5e8113f5f8d55965d24e7ba08f38b9d9d6d"},
+    {file = "commonroad_io-2023.4.tar.gz", hash = "sha256:db1109754dda8a9fe68a14c179482e8ba935ead784d7a72f4f5a3d440b6c23d8"},
 ]
 
 [package.dependencies]
@@ -300,12 +300,12 @@ iso3166 = ">=1.0.1"
 lxml = ">=4.2.2"
 matplotlib = ">=3.0.0"
 networkx = ">=2.2"
-numpy = {version = ">=1.22", markers = "python_version >= \"3.8\" and python_version < \"3.11\""}
+numpy = {version = ">=1.26.1,<2.0.0", markers = "python_version >= \"3.9\" and python_version < \"3.13\""}
 omegaconf = ">=2.0"
 Pillow = ">=7.0.0"
-protobuf = "3.20.1"
+protobuf = "3.20.2"
 rtree = ">=0.8.3"
-scipy = {version = ">=1.5.2", markers = "python_version < \"3.11\""}
+scipy = {version = ">=1.11.3,<2.0.0", markers = "python_version >= \"3.9\" and python_version < \"3.13\""}
 shapely = ">=2.0.1,<3.0.0"
 tqdm = ">=4.64"
 
@@ -564,27 +564,27 @@ woff = ["brotli (>=1.0.1)", "brotlicffi (>=0.8.0)", "zopfli (>=0.1.4)"]
 
 [[package]]
 name = "frenetix"
-version = "0.1.3"
+version = "0.1.7"
 description = "C++-accelerated Frenet Trajectory Planning Handler"
 optional = false
 python-versions = "<3.13,>=3.8"
 files = [
-    {file = "frenetix-0.1.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:4a32a3b3aa229bca1199d6f6b468792b4f90a7e3388a8d25a2abe0c9d630ed6a"},
-    {file = "frenetix-0.1.3-cp310-cp310-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:543f4ee241e19dde6ad53bedeb3c027dcf0e181a26e4ae4b1587670e75de45a2"},
-    {file = "frenetix-0.1.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e2f69b292915a6cc7eda59676c56d50b82cbd7be99d29e9aa227f3b61c274b92"},
-    {file = "frenetix-0.1.3-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:b3ffe6126566965c82e4be935db5fb2bb4a75b45b647268d970757e801998d3e"},
-    {file = "frenetix-0.1.3-cp311-cp311-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:b43166e9e51e25248a68a2239501b4ed75b0c2986fa095e107ea82c363fda8d2"},
-    {file = "frenetix-0.1.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ab8f31845bac755e53d2b282db03fb132328da448017e8a8bba704f17c965904"},
-    {file = "frenetix-0.1.3-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:c2191206ec7a666d81929694793d153563d24d94c214aeeafc4fbc064941f8b2"},
-    {file = "frenetix-0.1.3-cp312-cp312-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:c338f35f2ff10b974e41afb2fcb77dcd9bd3296fa6d5180c501757df7cf07786"},
-    {file = "frenetix-0.1.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7c23ff1b9748a018755a4f654b0d626c2ae194faa2e08f3c5ad7b97b817ce7af"},
-    {file = "frenetix-0.1.3-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:9d03a74a3a4a89c45843785a37327a2726f14efe9fd8c23dcaa5ece6ab05118c"},
-    {file = "frenetix-0.1.3-cp38-cp38-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:a127d2b2783046c5b2548cae290095d4d8cba4470bdce5b3a33e3acc7ea3fbf1"},
-    {file = "frenetix-0.1.3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:04d20d2785aedf0ca217a53b1c7e3d306df1515ddc913b333a06a5e013f878f4"},
-    {file = "frenetix-0.1.3-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:f8f7814d0f311a77f6360cc3f94249da97b635d4151cf230a1b363bae3832c1b"},
-    {file = "frenetix-0.1.3-cp39-cp39-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:79cbe326f6d85cb34e0d0d3c96c4063b703a359e9b986ac5474662774cbd7ce7"},
-    {file = "frenetix-0.1.3-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c286185ea2f0f38554d9e47c33ce2a4a51a24772d560baace926c2a77a324e75"},
-    {file = "frenetix-0.1.3.tar.gz", hash = "sha256:82152242d576fb8c618e7ce0216b3017dec04c51a8fa2353c718f2c7512db1e5"},
+    {file = "frenetix-0.1.7-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:711569aea43f32605deb8c4936034c6f76c58c7f6de4c6ca6bf0fc19b5a7f1b9"},
+    {file = "frenetix-0.1.7-cp310-cp310-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:4096d89a3e0e5bb5478d0a2f885891c8f178b13a1926736c9b7e4a0e85a50834"},
+    {file = "frenetix-0.1.7-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:72c94b6255ebb40411c8c6dc329668b62c623620c127907ee9690a7b6d31cb0d"},
+    {file = "frenetix-0.1.7-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:fb9840bf6ddcdc11cd972b105200dd48f55aae8afc2a1cd9c78c91f9ff658409"},
+    {file = "frenetix-0.1.7-cp311-cp311-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:1725b33d74275217ebb22fe47d2c928410c4bae65c5471953f677c6f377053a6"},
+    {file = "frenetix-0.1.7-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:14a04e525a4cc25a0c0514f77e9673a346fd0f19926dd349e053b81d92c82489"},
+    {file = "frenetix-0.1.7-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:2114aa8e04839f9adea8b6f1f610f5fbde7218f5d49966de1c20f1a9fda5f98b"},
+    {file = "frenetix-0.1.7-cp312-cp312-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:2dbb0a1e5abb6db4e033da00f01c82781c2ac99856ba766e0a42c9048f56f3b0"},
+    {file = "frenetix-0.1.7-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6334f7bb2b197cbbb121f7883a4ced022b4c2bc0c21c2f8c004265b19a75bf37"},
+    {file = "frenetix-0.1.7-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:9cbebb435bcf647ac395f4b93df5c6029ce3813354d076feea5263e1a5a0edc6"},
+    {file = "frenetix-0.1.7-cp38-cp38-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:38efb5066043eb9e2a23a660b1cea89fe136e22cba92f58f047e3c8220f9018d"},
+    {file = "frenetix-0.1.7-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d0175f23535f70e1f1c8be03b806b38be0b480fdbb2e6125e68f2f4d322784ad"},
+    {file = "frenetix-0.1.7-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:2b5e705da915c067f6c68515060c41830dc116c7a71df6c0acd056833d15af31"},
+    {file = "frenetix-0.1.7-cp39-cp39-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:9f3ea4f8f85a9938d3794bfd0094687a5d4085f9f57690f4269baaefcaf28fef"},
+    {file = "frenetix-0.1.7-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2675e0d5f85923c2cbb220dfd9a36ee21ab67f92eeb3efabfbea61de9f275836"},
+    {file = "frenetix-0.1.7.tar.gz", hash = "sha256:33f4fff77a3b68c304757942fb4e52120c8049ab2efadeac78da4bab5de096c4"},
 ]
 
 [package.dependencies]
@@ -592,18 +592,18 @@ numpy = ">=1.24.3"
 
 [[package]]
 name = "frenetix-occlusion"
-version = "2024.1.1"
-description = "Frenetix Occlusion-aware Trejectory Validation Framework"
+version = "2024.1.3"
+description = "Frenetix Occlusion-aware Trajectory Validation Framework"
 optional = false
 python-versions = ">=3.9,<3.12"
 files = [
-    {file = "frenetix_occlusion-2024.1.1-py3-none-any.whl", hash = "sha256:6afa798de24ca4b12a05b069ffad102f55e67dfde05a06040f6c741c1fa2a246"},
-    {file = "frenetix_occlusion-2024.1.1.tar.gz", hash = "sha256:df125553195c7b3cf085cbf2039631ed5d753516dcebe627fb046981b6207201"},
+    {file = "frenetix_occlusion-2024.1.3-py3-none-any.whl", hash = "sha256:73955a532c89f4ed3c6984262ce78dc4eecfdf00a22c1403fa11eb8588a9a4c1"},
+    {file = "frenetix_occlusion-2024.1.3.tar.gz", hash = "sha256:c1221ab6c8373809460a8da769e11ae87ec56c7313c75cc5fafeabca93d9dc74"},
 ]
 
 [package.dependencies]
 commonroad-drivability-checker = ">=2023.1,<2024.0"
-commonroad-io = "2023.2"
+commonroad-io = ">=2023.2,<2024.0"
 commonroad-route-planner = ">=2022.3,<2023.0"
 numpy = ">=1.24.2,<2.0.0"
 shapely = ">=2.0.2,<3.0.0"
@@ -808,13 +808,13 @@ files = [
 
 [[package]]
 name = "imageio"
-version = "2.33.1"
+version = "2.34.0"
 description = "Library for reading and writing a wide range of image, video, scientific, and volumetric data formats."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "imageio-2.33.1-py3-none-any.whl", hash = "sha256:c5094c48ccf6b2e6da8b4061cd95e1209380afafcbeae4a4e280938cce227e1d"},
-    {file = "imageio-2.33.1.tar.gz", hash = "sha256:78722d40b137bd98f5ec7312119f8aea9ad2049f76f434748eb306b6937cc1ce"},
+    {file = "imageio-2.34.0-py3-none-any.whl", hash = "sha256:08082bf47ccb54843d9c73fe9fc8f3a88c72452ab676b58aca74f36167e8ccba"},
+    {file = "imageio-2.34.0.tar.gz", hash = "sha256:ae9732e10acf807a22c389aef193f42215718e16bd06eed0c5bb57e1034a4d53"},
 ]
 
 [package.dependencies]
@@ -2016,35 +2016,33 @@ wcwidth = "*"
 
 [[package]]
 name = "protobuf"
-version = "3.20.1"
+version = "3.20.2"
 description = "Protocol Buffers"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "protobuf-3.20.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:3cc797c9d15d7689ed507b165cd05913acb992d78b379f6014e013f9ecb20996"},
-    {file = "protobuf-3.20.1-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:ff8d8fa42675249bb456f5db06c00de6c2f4c27a065955917b28c4f15978b9c3"},
-    {file = "protobuf-3.20.1-cp310-cp310-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:cd68be2559e2a3b84f517fb029ee611546f7812b1fdd0aa2ecc9bc6ec0e4fdde"},
-    {file = "protobuf-3.20.1-cp310-cp310-win32.whl", hash = "sha256:9016d01c91e8e625141d24ec1b20fed584703e527d28512aa8c8707f105a683c"},
-    {file = "protobuf-3.20.1-cp310-cp310-win_amd64.whl", hash = "sha256:32ca378605b41fd180dfe4e14d3226386d8d1b002ab31c969c366549e66a2bb7"},
-    {file = "protobuf-3.20.1-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:9be73ad47579abc26c12024239d3540e6b765182a91dbc88e23658ab71767153"},
-    {file = "protobuf-3.20.1-cp36-cp36m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:097c5d8a9808302fb0da7e20edf0b8d4703274d140fd25c5edabddcde43e081f"},
-    {file = "protobuf-3.20.1-cp37-cp37m-macosx_10_9_x86_64.whl", hash = "sha256:e250a42f15bf9d5b09fe1b293bdba2801cd520a9f5ea2d7fb7536d4441811d20"},
-    {file = "protobuf-3.20.1-cp37-cp37m-manylinux2014_aarch64.whl", hash = "sha256:cdee09140e1cd184ba9324ec1df410e7147242b94b5f8b0c64fc89e38a8ba531"},
-    {file = "protobuf-3.20.1-cp37-cp37m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:af0ebadc74e281a517141daad9d0f2c5d93ab78e9d455113719a45a49da9db4e"},
-    {file = "protobuf-3.20.1-cp37-cp37m-win32.whl", hash = "sha256:755f3aee41354ae395e104d62119cb223339a8f3276a0cd009ffabfcdd46bb0c"},
-    {file = "protobuf-3.20.1-cp37-cp37m-win_amd64.whl", hash = "sha256:62f1b5c4cd6c5402b4e2d63804ba49a327e0c386c99b1675c8a0fefda23b2067"},
-    {file = "protobuf-3.20.1-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:06059eb6953ff01e56a25cd02cca1a9649a75a7e65397b5b9b4e929ed71d10cf"},
-    {file = "protobuf-3.20.1-cp38-cp38-manylinux2014_aarch64.whl", hash = "sha256:cb29edb9eab15742d791e1025dd7b6a8f6fcb53802ad2f6e3adcb102051063ab"},
-    {file = "protobuf-3.20.1-cp38-cp38-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:69ccfdf3657ba59569c64295b7d51325f91af586f8d5793b734260dfe2e94e2c"},
-    {file = "protobuf-3.20.1-cp38-cp38-win32.whl", hash = "sha256:dd5789b2948ca702c17027c84c2accb552fc30f4622a98ab5c51fcfe8c50d3e7"},
-    {file = "protobuf-3.20.1-cp38-cp38-win_amd64.whl", hash = "sha256:77053d28427a29987ca9caf7b72ccafee011257561259faba8dd308fda9a8739"},
-    {file = "protobuf-3.20.1-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:6f50601512a3d23625d8a85b1638d914a0970f17920ff39cec63aaef80a93fb7"},
-    {file = "protobuf-3.20.1-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:284f86a6207c897542d7e956eb243a36bb8f9564c1742b253462386e96c6b78f"},
-    {file = "protobuf-3.20.1-cp39-cp39-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:7403941f6d0992d40161aa8bb23e12575637008a5a02283a930addc0508982f9"},
-    {file = "protobuf-3.20.1-cp39-cp39-win32.whl", hash = "sha256:db977c4ca738dd9ce508557d4fce0f5aebd105e158c725beec86feb1f6bc20d8"},
-    {file = "protobuf-3.20.1-cp39-cp39-win_amd64.whl", hash = "sha256:7e371f10abe57cee5021797126c93479f59fccc9693dafd6bd5633ab67808a91"},
-    {file = "protobuf-3.20.1-py2.py3-none-any.whl", hash = "sha256:adfc6cf69c7f8c50fd24c793964eef18f0ac321315439d94945820612849c388"},
-    {file = "protobuf-3.20.1.tar.gz", hash = "sha256:adc31566d027f45efe3f44eeb5b1f329da43891634d61c75a5944e9be6dd42c9"},
+    {file = "protobuf-3.20.2-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:09e25909c4297d71d97612f04f41cea8fa8510096864f2835ad2f3b3df5a5559"},
+    {file = "protobuf-3.20.2-cp310-cp310-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:e8fbc522303e09036c752a0afcc5c0603e917222d8bedc02813fd73b4b4ed804"},
+    {file = "protobuf-3.20.2-cp310-cp310-win32.whl", hash = "sha256:84a1544252a933ef07bb0b5ef13afe7c36232a774affa673fc3636f7cee1db6c"},
+    {file = "protobuf-3.20.2-cp310-cp310-win_amd64.whl", hash = "sha256:2c0b040d0b5d5d207936ca2d02f00f765906622c07d3fa19c23a16a8ca71873f"},
+    {file = "protobuf-3.20.2-cp36-cp36m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:3cb608e5a0eb61b8e00fe641d9f0282cd0eedb603be372f91f163cbfbca0ded0"},
+    {file = "protobuf-3.20.2-cp37-cp37m-macosx_10_9_x86_64.whl", hash = "sha256:84fe5953b18a383fd4495d375fe16e1e55e0a3afe7b4f7b4d01a3a0649fcda9d"},
+    {file = "protobuf-3.20.2-cp37-cp37m-manylinux2014_aarch64.whl", hash = "sha256:384164994727f274cc34b8abd41a9e7e0562801361ee77437099ff6dfedd024b"},
+    {file = "protobuf-3.20.2-cp37-cp37m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:e39cf61bb8582bda88cdfebc0db163b774e7e03364bbf9ce1ead13863e81e359"},
+    {file = "protobuf-3.20.2-cp37-cp37m-win32.whl", hash = "sha256:18e34a10ae10d458b027d7638a599c964b030c1739ebd035a1dfc0e22baa3bfe"},
+    {file = "protobuf-3.20.2-cp37-cp37m-win_amd64.whl", hash = "sha256:8228e56a865c27163d5d1d1771d94b98194aa6917bcfb6ce139cbfa8e3c27334"},
+    {file = "protobuf-3.20.2-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:03d76b7bd42ac4a6e109742a4edf81ffe26ffd87c5993126d894fe48a120396a"},
+    {file = "protobuf-3.20.2-cp38-cp38-manylinux2014_aarch64.whl", hash = "sha256:f52dabc96ca99ebd2169dadbe018824ebda08a795c7684a0b7d203a290f3adb0"},
+    {file = "protobuf-3.20.2-cp38-cp38-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:f34464ab1207114e73bba0794d1257c150a2b89b7a9faf504e00af7c9fd58978"},
+    {file = "protobuf-3.20.2-cp38-cp38-win32.whl", hash = "sha256:5d9402bf27d11e37801d1743eada54372f986a372ec9679673bfcc5c60441151"},
+    {file = "protobuf-3.20.2-cp38-cp38-win_amd64.whl", hash = "sha256:9c673c8bfdf52f903081816b9e0e612186684f4eb4c17eeb729133022d6032e3"},
+    {file = "protobuf-3.20.2-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:291fb4307094bf5ccc29f424b42268640e00d5240bf0d9b86bf3079f7576474d"},
+    {file = "protobuf-3.20.2-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:b4fdb29c5a7406e3f7ef176b2a7079baa68b5b854f364c21abe327bbeec01cdb"},
+    {file = "protobuf-3.20.2-cp39-cp39-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:7a5037af4e76c975b88c3becdf53922b5ffa3f2cddf657574a4920a3b33b80f3"},
+    {file = "protobuf-3.20.2-cp39-cp39-win32.whl", hash = "sha256:a9e5ae5a8e8985c67e8944c23035a0dff2c26b0f5070b2f55b217a1c33bbe8b1"},
+    {file = "protobuf-3.20.2-cp39-cp39-win_amd64.whl", hash = "sha256:c184485e0dfba4dfd451c3bd348c2e685d6523543a0f91b9fd4ae90eb09e8422"},
+    {file = "protobuf-3.20.2-py2.py3-none-any.whl", hash = "sha256:c9cdf251c582c16fd6a9f5e95836c90828d51b0069ad22f463761d27c6c19019"},
+    {file = "protobuf-3.20.2.tar.gz", hash = "sha256:712dca319eee507a1e7df3591e639a2b112a2f4a62d40fe7832a16fd19151750"},
 ]
 
 [[package]]
@@ -2531,18 +2529,18 @@ test = ["asv", "gmpy2", "hypothesis", "mpmath", "pooch", "pytest", "pytest-cov",
 
 [[package]]
 name = "setuptools"
-version = "69.0.3"
+version = "69.1.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "setuptools-69.0.3-py3-none-any.whl", hash = "sha256:385eb4edd9c9d5c17540511303e39a147ce2fc04bc55289c322b9e5904fe2c05"},
-    {file = "setuptools-69.0.3.tar.gz", hash = "sha256:be1af57fc409f93647f2e8e4573a142ed38724b8cdd389706a867bb4efcf1e78"},
+    {file = "setuptools-69.1.0-py3-none-any.whl", hash = "sha256:c054629b81b946d63a9c6e732bc8b2513a7c3ea645f11d0139a2191d735c60c6"},
+    {file = "setuptools-69.1.0.tar.gz", hash = "sha256:850894c4195f09c4ed30dba56213bf7c3f21d86ed6bdaafb5df5972593bfc401"},
 ]
 
 [package.extras]
 docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "pygments-github-lexers (==0.0.5)", "rst.linker (>=1.9)", "sphinx (<7.2.5)", "sphinx (>=3.5)", "sphinx-favicon", "sphinx-inline-tabs", "sphinx-lint", "sphinx-notfound-page (>=1,<2)", "sphinx-reredirects", "sphinxcontrib-towncrier"]
-testing = ["build[virtualenv]", "filelock (>=3.4.0)", "flake8-2020", "ini2toml[lite] (>=0.9)", "jaraco.develop (>=7.21)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "pip (>=19.1)", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-mypy (>=0.9.1)", "pytest-perf", "pytest-ruff", "pytest-timeout", "pytest-xdist", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel"]
+testing = ["build[virtualenv]", "filelock (>=3.4.0)", "flake8-2020", "ini2toml[lite] (>=0.9)", "jaraco.develop (>=7.21)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "pip (>=19.1)", "pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-home (>=0.5)", "pytest-mypy (>=0.9.1)", "pytest-perf", "pytest-ruff (>=0.2.1)", "pytest-timeout", "pytest-xdist", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel"]
 testing-integration = ["build[virtualenv] (>=1.0.3)", "filelock (>=3.4.0)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "packaging (>=23.1)", "pytest", "pytest-enabler", "pytest-xdist", "tomli", "virtualenv (>=13.0.0)", "wheel"]
 
 [[package]]
@@ -2799,12 +2797,12 @@ mpmath = ">=0.19"
 
 [[package]]
 name = "tensorboard"
-version = "2.15.1"
+version = "2.15.2"
 description = "TensorBoard lets you watch Tensors Flow"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "tensorboard-2.15.1-py3-none-any.whl", hash = "sha256:c46c1d1cf13a458c429868a78b2531d8ff5f682058d69ec0840b0bc7a38f1c0f"},
+    {file = "tensorboard-2.15.2-py3-none-any.whl", hash = "sha256:a6f6443728064d962caea6d34653e220e34ef8df764cb06a8212c17e1a8f0622"},
 ]
 
 [package.dependencies]
@@ -2814,7 +2812,7 @@ google-auth-oauthlib = ">=0.5,<2"
 grpcio = ">=1.48.2"
 markdown = ">=2.6.8"
 numpy = ">=1.12.0"
-protobuf = ">=3.19.6,<4.24"
+protobuf = ">=3.19.6,<4.24.0 || >4.24.0"
 requests = ">=2.21.0,<3"
 setuptools = ">=41.0.0"
 six = ">1.9"
@@ -2915,13 +2913,13 @@ optree = ["optree (>=0.9.1)"]
 
 [[package]]
 name = "tqdm"
-version = "4.66.1"
+version = "4.66.2"
 description = "Fast, Extensible Progress Meter"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "tqdm-4.66.1-py3-none-any.whl", hash = "sha256:d302b3c5b53d47bce91fea46679d9c3c6508cf6332229aa1e7d8653723793386"},
-    {file = "tqdm-4.66.1.tar.gz", hash = "sha256:d88e651f9db8d8551a62556d3cff9e3034274ca5d66e93197cf2490e2dcb69c7"},
+    {file = "tqdm-4.66.2-py3-none-any.whl", hash = "sha256:1ee4f8a893eb9bef51c6e35730cebf234d5d0b6bd112b0271e10ed7c24a02bd9"},
+    {file = "tqdm-4.66.2.tar.gz", hash = "sha256:6cd52cdf0fef0e0f543299cfc96fec90d7b8a7e88745f411ec33eb44d5ed3531"},
 ]
 
 [package.dependencies]
@@ -3029,13 +3027,13 @@ files = [
 
 [[package]]
 name = "tzdata"
-version = "2023.4"
+version = "2024.1"
 description = "Provider of IANA time zone data"
 optional = false
 python-versions = ">=2"
 files = [
-    {file = "tzdata-2023.4-py2.py3-none-any.whl", hash = "sha256:aa3ace4329eeacda5b7beb7ea08ece826c28d761cda36e747cfbf97996d39bf3"},
-    {file = "tzdata-2023.4.tar.gz", hash = "sha256:dd54c94f294765522c77399649b4fefd95522479a664a0cec87f41bebc6148c9"},
+    {file = "tzdata-2024.1-py2.py3-none-any.whl", hash = "sha256:9068bc196136463f5245e51efda838afa15aaeca9903f49050dfa2679db4d252"},
+    {file = "tzdata-2024.1.tar.gz", hash = "sha256:2674120f8d891909751c38abcdfd386ac0a5a1127954fbc332af6b5ceae07efd"},
 ]
 
 [[package]]
@@ -3162,4 +3160,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.11"
-content-hash = "e80f8d9f894bc3a9cafc9b87f6aadd7f18f90bbb53620ed0fa8f6714311f7ade"
+content-hash = "b00855e6b6b9aedc9010f93d3b6abefc321fea8d3a89f1ed18fe5e3ee1400394"

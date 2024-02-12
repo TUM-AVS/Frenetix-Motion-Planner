@@ -5,9 +5,11 @@
 # planner time step (in s)
 dt: 0.1
 # planning time horizon (in s)
-planning_horizon: 3.0
+planning_horizon: 4.0
 # velocity threshold (in m/s) for switching to low velocity mode
 low_vel_mode_threshold: 2.0
+
+replanning_frequency: 3 # 3 e.g. means three steps with one trajectory before calculating a new one.
 
 # emergency trajectory mode
 emergency_mode: "stopping"  # "stopping" or "min_risk" if None of both, "min_risk" is activated
@@ -20,10 +22,11 @@ emergency_mode: "stopping"  # "stopping" or "min_risk" if None of both, "min_ris
 t_min: 1.1
 
 # velocity sampling interval
-v_min: 0 # is calculated with current velodity & acc limits
+v_min: 0 # is calculated with current velocity & acc limits
 v_max: 0
 
 # lateral sampling interval
+d_ego_pos: False
 d_min: -3
 d_max: 3
 

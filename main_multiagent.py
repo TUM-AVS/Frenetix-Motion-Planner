@@ -59,7 +59,6 @@ def main():
     mod_path = os.path.dirname(os.path.abspath(__file__))
     logs_path = os.path.join(mod_path, "logs")
 
-
     # *********************************************************
     # Link a Scenario Folder & Start many Scenarios to evaluate
     # *********************************************************

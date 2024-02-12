@@ -1,2 +1,19 @@
+###############################################################################
+# WARNING: This is a Beta Version!!!!! Powerful Verison will be released later.
+###############################################################################
+
 # Use Behavior Planner
-use_behavior_planner: False  # WARNING: This is a Beta Version
+use_behavior_planner: False
+
+# Behavior Logging
+behavior_log_mode: DEBUG  # Options: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL
+archive_previous_logs: False
+minimal_logging: False
+
+# Behavior Visualization
+visualize_states: True  # adds static and dynamic behavior and situation states to the visualization
+# States to visualize; TODO remove these values and use the BehaviorPlannerState object instead
+behavior_state_static: None
+situation_state_static: None
+behavior_state_dynamic: None
+situation_state_dynamic: None

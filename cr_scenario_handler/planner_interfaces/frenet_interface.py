@@ -8,6 +8,7 @@ __status__ = "Beta"
 import os
 from copy import deepcopy
 import numpy as np
+
 from commonroad.geometry.shape import Rectangle, ShapeGroup
 from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.scenario.obstacle import DynamicObstacle, ObstacleType
@@ -15,6 +16,7 @@ from commonroad.scenario.scenario import Scenario
 from commonroad_route_planner.route_planner import RoutePlanner
 
 import cr_scenario_handler.utils.multiagent_logging as lh
+from behavior_planner.behavior_module import BehaviorModule
 from cr_scenario_handler.planner_interfaces.planner_interface import PlannerInterface
 import cr_scenario_handler.utils.goalcheck as gc
 import cr_scenario_handler.utils.helper_functions as hf
@@ -51,6 +53,9 @@ class FrenetPlannerInterface(PlannerInterface):
         self.id = agent_id
         self.config_sim.simulation.ego_agent_id = agent_id
         self.DT = self.config_plan.planning.dt
+        self.replanning_counter = 0
+        self.replanning_traj = None
+        self.behavior_module_state = None
 
         self.planning_problem = planning_problem
         self.log_path = log_path
@@ -97,32 +102,36 @@ class FrenetPlannerInterface(PlannerInterface):
         if not self.config_sim.behavior.use_behavior_planner:
             self.route_planner = RoutePlanner(scenario=scenario, planning_problem=planning_problem)
             self.reference_path = self.route_planner.plan_routes().retrieve_first_route().reference_path
-            #
+
             try:
                 self.reference_path, _ = self.route_planner.extend_reference_path_at_start(reference_path=self.reference_path,
                                                                                   initial_position_cart=self.x_0.position,
                                                                                   additional_lenght_in_meters=10.0)
             except:
                 self.reference_path = extend_ref_path(self.reference_path, self.x_0.position)
+
+            self.reference_path = smooth_ref_path(self.reference_path)
+
+            end_velocity = getattr(getattr(self.planning_problem.goal.state_list[0], 'velocity', None), 'end', 10)
+            end_pos = getattr(self.planning_problem.goal.state_list[0], 'position', None)
+            if end_pos:
+                center = end_pos.center if not type(end_pos) == ShapeGroup else end_pos.shapes[0].center
+                diff = np.min(np.linalg.norm(self.reference_path - center, axis=1))
+            else:
+                diff = 0
+            additional_length_in_meters = diff + end_velocity * (config_planner.planning.planning_horizon + 1.0)
+
+            self.reference_path, _ = hf.extend_reference_path_at_end(reference_path=self.reference_path,
+                                                                     final_position=self.reference_path[-1],
+                                                                     additional_lenght_in_meters=additional_length_in_meters)
         else:
-            raise NotImplementedError
-
-        # TODO: Achieve a stable route planner version
-        self.reference_path = smooth_ref_path(self.reference_path)
-
-
-        end_velocity = getattr(getattr(self.planning_problem.goal.state_list[0], 'velocity', None), 'end', 10)
-        end_pos = getattr(self.planning_problem.goal.state_list[0], 'position', None)
-        if end_pos:
-            center = end_pos.center if not type(end_pos) == ShapeGroup else end_pos.shapes[0].center
-            diff = np.min(np.linalg.norm(self.reference_path - center, axis=1))
-        else:
-            diff = 0
-        additional_length_in_meters = diff + end_velocity * (config_planner.planning.planning_horizon + 1.0)
-
-        self.reference_path, _ = hf.extend_reference_path_at_end(reference_path=self.reference_path,
-                                                                 final_position=self.reference_path[-1],
-                                                                 additional_lenght_in_meters=additional_length_in_meters)
+            self.behavior_modul = BehaviorModule(scenario=scenario,
+                                                 planning_problem=planning_problem,
+                                                 init_ego_state=x_0,
+                                                 dt=config_planner.planning.dt,
+                                                 config=config_sim,
+                                                 log_path=self.log_path)
+            self.reference_path = smooth_ref_path(self.behavior_modul.reference_path)
 
         self.goal_area = gc.get_goal_area_shape_group(planning_problem=planning_problem, scenario=scenario)
 
@@ -189,7 +198,11 @@ class FrenetPlannerInterface(PlannerInterface):
             # set desired velocity
             self.desired_velocity = self.velocity_planner.calculate_desired_velocity(self.x_0, self.x_cl[0][0])
         else:
-            raise NotImplementedError
+            behavior = self.behavior_modul.execute(predictions=predictions, ego_state=self.x_0, time_step=self.DT)
+            self.desired_velocity = behavior.desired_velocity
+            if behavior.reference_path is not None:
+                self.reference_path = behavior.reference_path
+            self.behavior_module_state = behavior.behavior_planner_state
 
         self.planner.update_externals(scenario=scenario, x_0=self.x_0, x_cl=self.x_cl,
                                       desired_velocity=self.desired_velocity, predictions=predictions)
@@ -211,32 +224,63 @@ class FrenetPlannerInterface(PlannerInterface):
                     using the vehicle center for the position: If error == 0
                 None: Otherwise
         """
-        if self.occlusion_module is not None:
-            self.occlusion_module.evaluate_scenario(predictions=self.planner.predictions,
-                                                    ego_pos=self.x_0.position,
-                                                    ego_v=self.x_0.velocity,
-                                                    ego_orientation=self.x_0.orientation,
-                                                    ego_pos_cl=np.array([self.x_cl[0][0], self.x_cl[1][0]]),
-                                                    timestep=current_timestep,
-                                                    cosy_cl=self.coordinate_system.ccosy)
 
-        # plan trajectory
-        optimal_trajectory_pair = self.planner.plan()
+        if int(self.replanning_counter / self.config_plan.planning.replanning_frequency) == 1:
+            self.replanning_counter = 0
 
-        if not optimal_trajectory_pair:
-            # Could not plan feasible trajectory
-            self.msg_logger.critical("No Kinematic Feasible and Optimal Trajectory Available!")
-            return None
+        if self.replanning_counter == 0 or self.config_plan.planning.replanning_frequency < 2:
+            if self.occlusion_module is not None:
+                self.occlusion_module.evaluate_scenario(predictions=self.planner.predictions,
+                                                        ego_pos=self.x_0.position,
+                                                        ego_v=self.x_0.velocity,
+                                                        ego_orientation=self.x_0.orientation,
+                                                        ego_pos_cl=np.array([self.x_cl[0][0], self.x_cl[1][0]]),
+                                                        timestep=current_timestep,
+                                                        cosy_cl=self.coordinate_system.ccosy)
 
-        # record the new state for planner-internal logging
-        self.planner.record_state_and_input(optimal_trajectory_pair[0].state_list[1])
+            # plan trajectory
+            optimal_trajectory_pair = self.planner.plan()
 
-        # update init state and curvilinear state
-        self.x_0 = deepcopy(self.planner.record_state_list[-1])
-        self.x_cl = (optimal_trajectory_pair[2][1], optimal_trajectory_pair[3][1])
+            if not optimal_trajectory_pair:
+                # Could not plan feasible trajectory
+                self.msg_logger.critical("No Kinematic Feasible and Optimal Trajectory Available!")
+                return None, self.replanning_counter
 
-        self.msg_logger.info(f"current time step: {current_timestep}")
-        self.msg_logger.info(f"current velocity: {self.x_0.velocity}")
-        self.msg_logger.info(f"current target velocity: {self.desired_velocity}")
+            # record the new state for planner-internal logging
+            self.planner.record_state_and_input(optimal_trajectory_pair[0].state_list[1])
 
-        return optimal_trajectory_pair[0]
+            # update init state and curvilinear state
+            self.x_0 = deepcopy(self.planner.record_state_list[-1])
+            self.x_cl = (optimal_trajectory_pair[2][1], optimal_trajectory_pair[3][1])
+
+            self.msg_logger.info(f"current time step: {current_timestep}")
+            self.msg_logger.info(f"current velocity: {self.x_0.velocity}")
+            self.msg_logger.info(f"current target velocity: {self.desired_velocity}")
+
+            self.replanning_traj = optimal_trajectory_pair
+            selected_trajectory = optimal_trajectory_pair[0]
+
+        else:
+
+            # record the new state for planner-internal logging
+            self.planner.record_state_and_input(self.replanning_traj[0].state_list[1+self.replanning_counter])
+
+            # update init state and curvilinear state
+            self.x_0 = deepcopy(self.planner.record_state_list[-1])
+            self.x_cl = (self.replanning_traj[2][1+self.replanning_counter], self.replanning_traj[3][1+self.replanning_counter])
+
+            current_ego_vehicle = self.planner.convert_state_list_to_commonroad_object(self.trajectory_pair[0].state_list[self.replanning_counter:],
+                                                                                       self.config_sim.simulation.ego_agent_id)
+            self.planner.set_ego_vehicle_state(current_ego_vehicle=current_ego_vehicle)
+
+            self.planner.plan_postprocessing(optimal_trajectory=self.planner.optimal_trajectory, planning_time=0.0,
+                                             replanning_counter=self.replanning_counter)
+
+            self.msg_logger.info(f"current time step: {current_timestep}")
+            self.msg_logger.info(f"current velocity: {self.x_0.velocity}")
+            self.msg_logger.info(f"current target velocity: {self.desired_velocity}")
+            selected_trajectory = self.replanning_traj
+
+        self.replanning_counter += 1
+
+        return selected_trajectory, self.replanning_counter-1

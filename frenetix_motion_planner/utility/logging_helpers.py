@@ -409,7 +409,8 @@ class DataLoggingCosts:
         return self.header
 
     def log(self, trajectory, time_step: int, infeasible_kinematics, percentage_kinematics,
-            planning_time: float, ego_vehicle: DynamicObstacle, collision: bool = False, desired_velocity: float = None):
+            planning_time: float, ego_vehicle: DynamicObstacle, collision: bool = False, desired_velocity: float = None,
+            replanning_counter: str = 0):
 
         new_line = "\n" + str(time_step)
 
@@ -437,21 +438,21 @@ class DataLoggingCosts:
                 new_line += ";" + json.dumps(str(kin), default=default)
 
             # log position
-            new_line += ";" + json.dumps(str(','.join(map(str, cartesian.x))), default=default)
-            new_line += ";" + json.dumps(str(','.join(map(str, cartesian.y))), default=default)
-            new_line += ";" + json.dumps(str(','.join(map(str, cartesian.theta))), default=default)
-            new_line += ";" + json.dumps(str(','.join(map(str, cartesian.kappa))), default=default)
-            new_line += ";" + json.dumps(str(','.join(map(str, trajectory.curvilinear.theta))), default=default)
+            new_line += ";" + json.dumps(str(','.join(map(str, cartesian.x[replanning_counter:]))), default=default)
+            new_line += ";" + json.dumps(str(','.join(map(str, cartesian.y[replanning_counter:]))), default=default)
+            new_line += ";" + json.dumps(str(','.join(map(str, cartesian.theta[replanning_counter:]))), default=default)
+            new_line += ";" + json.dumps(str(','.join(map(str, cartesian.kappa[replanning_counter:]))), default=default)
+            new_line += ";" + json.dumps(str(','.join(map(str, trajectory.curvilinear.theta[replanning_counter:]))), default=default)
             # log velocity & acceleration
-            new_line += ";" + json.dumps(str(','.join(map(str, cartesian.v))), default=default)
+            new_line += ";" + json.dumps(str(','.join(map(str, cartesian.v[replanning_counter:]))), default=default)
             new_line += ";" + json.dumps(str(desired_velocity), default=default)
-            new_line += ";" + json.dumps(str(','.join(map(str, cartesian.a))), default=default)
+            new_line += ";" + json.dumps(str(','.join(map(str, cartesian.a[replanning_counter:]))), default=default)
 
             # # log frenet coordinates (distance to reference path)
             new_line += ";" + \
-                json.dumps(str(trajectory.curvilinear.s[0]), default=default)
+                json.dumps(str(trajectory.curvilinear.s[[replanning_counter]]), default=default)
             new_line += ";" + \
-                json.dumps(str(trajectory.curvilinear.d[0]), default=default)
+                json.dumps(str(trajectory.curvilinear.d[[replanning_counter]]), default=default)
 
             # log risk values number
             if trajectory._ego_risk is not None and trajectory._obst_risk is not None:

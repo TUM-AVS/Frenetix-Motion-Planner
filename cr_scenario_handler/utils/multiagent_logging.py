@@ -13,6 +13,7 @@ import sqlite3
 import sys
 
 from omegaconf import DictConfig, ListConfig
+from typing import Any
 
 from cr_scenario_handler.utils.agent_status import AgentStatus, TIMEOUT
 from cr_scenario_handler.utils.configuration import Configuration
@@ -22,32 +23,6 @@ class SimulationLogger:
     """
         Simulation logging object, which writes the data collected during the simulation to a sql database
     """
-    @staticmethod
-    def _convert_config(config: Configuration) -> dict:
-        """converts config to dict for writing configinto sql database"""
-        data = dict()
-        for item in config.__dict__:
-            # print(item)
-            ii = getattr(config, item)
-            data[item] = dict()
-            for it in ii.__dict__:
-                val = ii.__dict__[it]
-                if isinstance(val, DictConfig):
-                    valdic = dict()
-                    for key, value in val.items():
-                        if isinstance(value, ListConfig):
-                            valdic[key] = list(value)
-                        elif isinstance(value, DictConfig):
-                            valdic[key] = dict(value)
-                        else:
-                            valdic[key] = value
-                    val = valdic
-                if isinstance(val, ListConfig):
-                    val = list(val)
-
-                data[item][it] = val
-
-        return data
 
     def __init__(self, config):
         """"""
@@ -62,6 +37,8 @@ class SimulationLogger:
         self.scenario = self.config.simulation.name_scenario
 
         os.makedirs(self.log_path, exist_ok=True)
+        if os.path.exists(os.path.join(self.log_path, "simulation.db")):
+            os.remove(os.path.join(self.log_path, "simulation.db"))
 
         self.con = sqlite3.connect(os.path.join(self.log_path, "simulation.db"), timeout=TIMEOUT,
                                                 isolation_level="EXCLUSIVE"
@@ -74,6 +51,28 @@ class SimulationLogger:
         self.con.commit()
 
         self.create_tables()
+
+    def _serialize_config_item(self, item: Any) -> Any:
+        """Recursively serialize configuration items."""
+        if isinstance(item, DictConfig):
+            return {key: self._serialize_config_item(value) for key, value in item.items()}
+        elif isinstance(item, ListConfig):
+            return [self._serialize_config_item(value) for value in item]
+        else:
+            return item
+
+    def _convert_config(self, config: Configuration) -> dict:
+        """Converts config to dict for writing config into an SQL database."""
+        data = dict()
+        for item in config.__dict__:
+            ii = getattr(config, item)
+            data[item] = dict()
+            for it in ii.__dict__:
+                val = ii.__dict__[it]
+                # Use the recursive serialization function
+                data[item][it] = self._serialize_config_item(val)
+
+        return data
 
     def create_tables(self):
         if self.log_time:
@@ -187,9 +186,9 @@ class SimulationLogger:
         Log the meta information of the simulation
         """
         self.original_planning_problem_id = original_planning_problem_id
-        conf_sim = json.dumps(SimulationLogger._convert_config(config_sim))
-        conf_plan = json.dumps(SimulationLogger._convert_config(config_planner))
-        data = [self.scenario, len(agent_ids), json.dumps(agent_ids), json.dumps(original_planning_problem_id), json.dumps(batch_names), duration_init, None, None,conf_sim, conf_plan]
+        conf_sim = json.dumps(self._convert_config(config_sim))
+        conf_plan = json.dumps(self._convert_config(config_planner))
+        data = [self.scenario, len(agent_ids), json.dumps(agent_ids), json.dumps(original_planning_problem_id), json.dumps(batch_names), duration_init, None, None, conf_sim, conf_plan]
         self.con.execute("INSERT INTO meta VALUES(?,?,?,?,?,?,?,?,?,?)", data)
         self.con.commit()
 

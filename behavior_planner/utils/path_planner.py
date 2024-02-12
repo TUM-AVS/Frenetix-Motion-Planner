@@ -5,15 +5,16 @@ __maintainer__ = "Rainer Trauth"
 __email__ = "rainer.trauth@tum.de"
 __status__ = "Beta"
 
-import behavior_planner.utils.helper_functions as hf
-from cr_scenario_handler.utils.utils_coordinate_system import CoordinateSystem, smooth_ref_path
-
 from itertools import zip_longest
 import numpy as np
 import logging
 
+import behavior_planner.utils.helper_functions as hf
+
+from cr_scenario_handler.utils.utils_coordinate_system import CoordinateSystem, smooth_ref_path
+
 # get logger
-msg_logger = logging.getLogger("Message_logger")
+behavior_message_logger = logging.getLogger("Behavior_logger")
 
 
 class PathPlanner(object):
@@ -43,7 +44,8 @@ class PathPlanner(object):
 
         # route planning
         self.route_planner = RoutePlan(lanelet_network=BM_state.scenario.lanelet_network,
-                                       global_nav_route=BM_state.global_nav_route)
+                                       global_nav_route=BM_state.global_nav_route,
+                                       config_sim=self.BM_state.config)
         self.PP_state.route_plan_ids = self.route_planner.global_nav_path_ids
 
         self.PP_state.cl_nav_coordinate_system = self.route_planner.cl_nav_coordinate_system
@@ -97,13 +99,13 @@ class PathPlanner(object):
 class RoutePlan(object):
     """ Route Plan: object holding static route plan and navigation route."""
 
-    def __init__(self, lanelet_network, global_nav_route):
+    def __init__(self, lanelet_network, global_nav_route, config_sim):
 
         self.lanelet_network = lanelet_network
         self.global_nav_route = global_nav_route
         self.global_nav_path = global_nav_route.reference_path
-        self.global_nav_path_ids = global_nav_route.list_ids_lanelets
-        self.cl_nav_coordinate_system = CoordinateSystem(reference=self.global_nav_path)
+        self.global_nav_path_ids = global_nav_route.set_ids_lanelets_permissible
+        self.cl_nav_coordinate_system = CoordinateSystem(reference=self.global_nav_path, config_sim=config_sim)
 
         self.static_route_plan = None
 
@@ -231,7 +233,7 @@ class RoutePlan(object):
                 stop_position_s = self.cl_nav_coordinate_system.convert_to_curvilinear_coords(
                     stop_position_x, stop_position_y)[0]
             except:
-                msg_logger.error("PP stop line position of traffic sign or light is out of projection domain")
+                behavior_message_logger.error("PP stop line position of traffic sign or light is out of projection domain")
                 stop_position_s = None
 
             if lanelet.stop_line.traffic_sign_ref is not None:
@@ -243,7 +245,7 @@ class RoutePlan(object):
                             traffic_sign_position_s = self.cl_nav_coordinate_system.convert_to_curvilinear_coords(
                                 traffic_sign_position_xy[0], traffic_sign_position_xy[1])[0]
                         except:
-                            msg_logger.error("PP position of traffic sign is out of projection domain")
+                            behavior_message_logger.error("PP position of traffic sign is out of projection domain")
                             traffic_sign_position_s = None
                         for traffic_sign_element in traffic_sign.traffic_sign_elements:
 
@@ -252,7 +254,7 @@ class RoutePlan(object):
                             elif stop_position_s is not None and traffic_sign_position_s is None:
                                 traffic_sign_position_s = stop_position_s
                             elif stop_position_s is None and traffic_sign_position_s is None:
-                                msg_logger.warning("PP traffic sign is out of projection domain")
+                                behavior_message_logger.warning("PP traffic sign is out of projection domain")
                                 continue
 
                             if traffic_sign_element.traffic_sign_element_id.name == 'YIELD':
@@ -279,7 +281,7 @@ class RoutePlan(object):
                             traffic_light_position_s = self.cl_nav_coordinate_system.convert_to_curvilinear_coords(
                                 traffic_light.position[0], traffic_light.position[1])[0]
                         except:
-                            msg_logger.warning('PP traffic light position out of projection domain')
+                            behavior_message_logger.warning('PP traffic light position out of projection domain')
                             traffic_light_position_s = None
 
                         if stop_position_s is None and traffic_light_position_s is not None:
@@ -287,7 +289,7 @@ class RoutePlan(object):
                         elif stop_position_s is not None and traffic_light_position_s is None:
                             traffic_light_position_s = stop_position_s
                         elif stop_position_s is None and traffic_light_position_s is None:
-                            msg_logger.warning("PP traffic light is out of projection domain")
+                            behavior_message_logger.warning("PP traffic light is out of projection domain")
                             continue
 
                         if traffic_light.active:
@@ -317,7 +319,7 @@ class RoutePlan(object):
                                 lanelet.center_vertices[0][0], lanelet.center_vertices[0][1])[0]
                         except:
                             merging_point_s = None
-                            msg_logger.error("PP merging point is out of projection domain")
+                            behavior_message_logger.error("PP merging point is out of projection domain")
                             continue
                         self.lane_merges += [{'type': 'LaneMerge',
                                               'position_xy': lanelet.center_vertices[0],
@@ -339,21 +341,21 @@ class RoutePlan(object):
                                 lanelet.center_vertices[0][0], lanelet.center_vertices[0][1])[0]
                         except:
                             start_s = None
-                            msg_logger.error("PP start of intersection out of projection domain")
+                            behavior_message_logger.error("PP start of intersection out of projection domain")
                         end_xy = lanelet.center_vertices[-1].tolist()
                         try:
                             end_s = self.cl_nav_coordinate_system.convert_to_curvilinear_coords(
                                 lanelet.center_vertices[-1][0], lanelet.center_vertices[-1][1])[0]
                         except:
                             end_s = None
-                            msg_logger.error("PP end of intersection out of projection domain")
+                            behavior_message_logger.error("PP end of intersection out of projection domain")
 
                         if start_s is None and end_s is not None:
                             start_s = max([0.001, end_s - 15])
                         elif start_s is not None and end_s is None:
                             end_s = start_s + 15
                         elif start_s is None and end_s is None:
-                            msg_logger.warning("PP intersection is out of projection domain")
+                            behavior_message_logger.warning("PP intersection is out of projection domain")
                             continue
 
                         self.intersections += [{'id': intersection_element.incoming_id,
@@ -447,6 +449,7 @@ class ReferencePath(object):
         self.cl_ref_coordinate_system = None
         self.reference_path = None
         self.list_ids_ref_path = None
+
         self._create_base_ref_path(global_nav_route)
 
     def _create_base_ref_path(self, global_nav_route):
@@ -454,19 +457,16 @@ class ReferencePath(object):
         base_lanelet_ids = hf.create_consecutive_lanelet_id_list(self.lanelet_network,
                                                                  global_nav_route.list_ids_lanelets[0],
                                                                  self.BM_state.PP_state.route_plan_ids)
-        # create empty list_portions
-        base_list_portions = []
-        for i in base_lanelet_ids:
-            base_list_portions += [(0, 1)]
+
         # create base reference path
         base_ref_path = hf.compute_straight_reference_path(self.lanelet_network, base_lanelet_ids)
         self.list_ids_ref_path = base_lanelet_ids
-        self.reference_path = base_ref_path
+        self.reference_path = base_ref_path  # smooth_ref_path(base_ref_path)
         # update curvilinear reference coordinate system
         self._update_cl_ref_coordinate_system()
 
     def _update_cl_ref_coordinate_system(self):
-        self.cl_ref_coordinate_system = CoordinateSystem(reference=self.reference_path)
+        self.cl_ref_coordinate_system = CoordinateSystem(reference=self.reference_path, config_sim=self.BM_state.config)
 
     def create_lane_change(self, ego_state, current_lanelet_id, goal_lanelet_id, number_vertices_lane_change=6):
         old_path = self.reference_path[:]
@@ -482,8 +482,8 @@ class ReferencePath(object):
         old_path = old_path[:cut_idx_old + self.BM_state.future_factor, :]
         new_path = new_path[self.BM_state.future_factor + cut_idx_new + number_vertices_lane_change:, :]
         # create final reference path
-        reference_path = np.concatenate((old_path, new_path), axis=0)
-        self.reference_path = smooth_ref_path(reference_path)
+        self.reference_path = np.concatenate((old_path, new_path), axis=0)
+        # self.reference_path = smooth_ref_path(reference_path)
 
 
 class StaticGoal(object):

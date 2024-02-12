@@ -69,7 +69,7 @@ class ReactivePlannerCpp(Planner):
 
                 # Symmetrize the covariance matrix if necessary and convert to float64
                 covariance = pred['cov_list'][time_step].astype(np.float64)
-                if not np.array_equal(covariance, covariance.T):
+                if not np.array_equal(covariance, covariance.T, equal_nan=True):
                     covariance = ((covariance + covariance.T) / 2).astype(np.float64)
 
                 # Create the covariance matrix for PoseWithCovariance
@@ -81,7 +81,8 @@ class ReactivePlannerCpp(Planner):
                 predicted_path[time_step] = pwc
 
             # Store the resulting predicted path
-            self.predictionsForCpp[key] = frenetix.PredictedObject(int(key), predicted_path)
+            self.predictionsForCpp[key] = frenetix.PredictedObject(int(key), predicted_path,
+                                                                   pred['shape']['length'], pred['shape']['width'])
 
     def set_cost_function(self, cost_weights):
         self.config_plan.cost.cost_weights = cost_weights
@@ -150,7 +151,8 @@ class ReactivePlannerCpp(Planner):
         if name in self.cost_weights.keys():
             self.handler.add_cost_function(
                 cf.CalculateCollisionProbabilityFast(name, self.cost_weights[name], self.predictionsForCpp,
-                                                     self.vehicle_params.length*2.5, self.vehicle_params.width*2))
+                                                     self.vehicle_params.length, self.vehicle_params.width,
+                                                     self.vehicle_params.wb_rear_axle))
 
         name = "distance_to_obstacles"
         if name in self.cost_weights.keys() and self.cost_weights[name] > 0:

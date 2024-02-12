@@ -17,6 +17,7 @@ from commonroad.planning.planning_problem import PlanningProblem
 
 # commonroad-io
 from commonroad.scenario.scenario import Scenario
+
 # scenario handler
 import cr_scenario_handler.planner_interfaces as planner_interfaces
 import cr_scenario_handler.utils.multiagent_helpers as hf
@@ -144,6 +145,7 @@ class Agent:
     @all_trajectories.setter
     def all_trajectories(self, traj):
         self._all_trajectories = traj
+
     @property
     def status(self):
         return self.agent_state.status
@@ -227,7 +229,7 @@ class Agent:
                 # Execute Planner
                 # **************************
                 comp_time_start = time.time()
-                trajectory = self.planner_interface.step_interface(timestep)
+                trajectory, replanning_counter = self.planner_interface.step_interface(timestep)
                 comp_time_end = time.time()
                 # END TIMER
                 self.planning_times.append(comp_time_end - comp_time_start)
@@ -252,7 +254,8 @@ class Agent:
                                                     predictions=self.predictions,
                                                     visible_area=self.visible_area,
                                                     plot_window=self.config_visu.plot_window_dyn, save=self.save_plot,
-                                                    show=self.show_plot, gif=self.gif)
+                                                    show=self.show_plot, gif=self.gif,
+                                                    replanning_counter=replanning_counter)
 
                 else:
                     self.msg_logger.critical(
@@ -274,7 +277,6 @@ class Agent:
             evaluate(self.scenario, self.planning_problem, self.id, self.record_state_list, self.record_input_list,
                      self.config, self.log_path,
                      )
-
 
         # plot final trajectory
         show = (self.config_visu.show_all_individual_final_trajectories or

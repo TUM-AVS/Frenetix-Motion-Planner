@@ -16,10 +16,11 @@ msg_logger = logging.getLogger("Message_logger")
 
 class SamplingHandler:
     def __init__(self, dt: float, max_sampling_number: int, t_min: float, horizon: float, delta_d_min: float,
-                 delta_d_max: float):
+                 delta_d_max: float, d_ego_pos: bool):
         self.dt = dt
         self.max_sampling_number = max_sampling_number
         self.s_sampling_mode = False
+        self.d_ego_pos = d_ego_pos
 
         self.t_min = t_min
         self.horizon = horizon
@@ -33,7 +34,9 @@ class SamplingHandler:
         self.s_sampling = None
 
         self.set_t_sampling()
-        self.set_d_sampling()
+
+        if not self.d_ego_pos:
+            self.set_d_sampling()
 
     def update_static_params(self, t_min: float, horizon: float, delta_d_min: float, delta_d_max: float):
         assert t_min > 0, "t_min cant be <= 0"
@@ -56,11 +59,15 @@ class SamplingHandler:
         """
         self.t_sampling = TimeSampling(self.t_min, self.horizon, self.max_sampling_number, self.dt)
 
-    def set_d_sampling(self):
+    def set_d_sampling(self, lat_pos=None):
         """
         Sets sample parameters of lateral offset
         """
-        self.d_sampling = LateralPositionSampling(self.delta_d_min, self.delta_d_max, self.max_sampling_number)
+        if not self.d_ego_pos:
+            self.d_sampling = LateralPositionSampling(self.delta_d_min, self.delta_d_max, self.max_sampling_number)
+        else:
+            self.d_sampling = LateralPositionSampling(lat_pos + self.delta_d_min, lat_pos + self.delta_d_max,
+                                                      self.max_sampling_number)
 
     def set_v_sampling(self, v_min, v_max):
         """

@@ -63,7 +63,7 @@ def smooth_ref_path(reference: np.ndarray):
     u_new = np.linspace(u.min(), u.max(), spline_discretization)
     x_new, y_new = splev(u_new, tck, der=0)
     reference = np.array([x_new, y_new]).transpose()
-    # reference = resample_polyline(reference, 1)
+    reference = resample_polyline(reference, 1)
 
     # remove duplicated vertices in reference path
     _, idx = np.unique(reference, axis=0, return_index=True)

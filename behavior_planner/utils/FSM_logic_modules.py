@@ -5,7 +5,6 @@ __maintainer__ = "Rainer Trauth"
 __email__ = "rainer.trauth@tum.de"
 __status__ = "Beta"
 
-
 """Logic Modules for the FSM Machines"""
 
 from random import randint
@@ -13,11 +12,12 @@ from commonroad.scenario.lanelet import LineMarking
 import logging
 
 # get logger
-msg_logger = logging.getLogger("Message_logger")
+behavior_message_logger = logging.getLogger("Behavior_logger")
 
 
 class LogicStreetSetting:
     """logic module for Ego FSM."""
+
     def __init__(self, BM_state):
         self.street_setting = BM_state.street_setting
         self.cur_state = BM_state.street_setting
@@ -55,6 +55,7 @@ class LogicStreetSetting:
 
 class LogicBehaviorStatic:
     """logic module for street setting state to determine static behavior states."""
+
     def __init__(self, start_state, BM_state):
         self.BM_state = BM_state
         self.static_route_plan = self.BM_state.PP_state.static_route_plan
@@ -86,6 +87,7 @@ class LogicBehaviorStatic:
 
 class LogicHighwayDynamic:
     """logic module for state Highway to determine dynamic behavior states."""
+
     def __init__(self, start_state, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
@@ -109,10 +111,9 @@ class LogicHighwayDynamic:
                 self.cur_state = 'NoLaneChanges'
 
         if self.cur_state == 'NoLaneChanges':
-            if self.cur_state == 'NoLaneChange':
-                if self.FSM_state.no_auto_lane_change:
-                    self.transition = 'toDynamicDefault'
-                    self.cur_state = 'DynamicDefault'
+            if self.FSM_state.no_auto_lane_change:
+                self.transition = 'toDynamicDefault'
+                self.cur_state = 'DynamicDefault'
 
         # initiate lane change preparations
         if self.cur_state == 'DynamicDefault' and not self.FSM_state.no_auto_lane_change \
@@ -206,6 +207,7 @@ class LogicHighwayDynamic:
 
 class LogicCountryDynamic:
     """logic module for state Country to determine dynamic behavior states."""
+
     def __init__(self, start_state, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
@@ -241,6 +243,7 @@ class LogicCountryDynamic:
 
 class LogicUrbanDynamic:
     """logic module for state Urban to determine dynamic behavior states."""
+
     def __init__(self, start_state, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
@@ -274,7 +277,7 @@ class LogicUrbanDynamic:
             if self.BM_state.nav_lane_changes_right > 0:
                 if self.BM_state.current_lanelet.adj_right is not None:
                     if self.BM_state.current_lanelet.adj_right_same_direction:
-                        if self.BM_state.current_lanelet.line_marking_right_vertices != LineMarking('broad_solid') and \
+                        if self.BM_state.current_lanelet.line_marking_right_vertices != LineMarking('solid') and \
                                 self.BM_state.current_lanelet.line_marking_right_vertices != LineMarking('broad_solid'):
                             self.transition = 'toPrepareLaneChangeRight'
                             self.cur_state = 'PrepareLaneChangeRight'
@@ -355,6 +358,7 @@ class LogicUrbanDynamic:
 
 class LogicPrepareLaneChangeLeft:
     """logic module for state PrepareLaneChangeLeft."""
+
     def __init__(self, start_state, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
@@ -396,6 +400,7 @@ class LogicPrepareLaneChangeLeft:
 
 class LogicLaneChangeLeft:
     """logic module for state LaneChangeLeft."""
+
     def __init__(self, start_state, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
@@ -418,7 +423,7 @@ class LogicLaneChangeLeft:
 
         if self.cur_state == 'InitiateLaneChange' and self.FSM_state.situation_time_step_counter > 16:
             self.FSM_state.lane_change_left_abort = True
-            msg_logger.debug("FSM Dynamic Situation State: Aborting Lane Change")
+            behavior_message_logger.debug("FSM Dynamic Situation State: Aborting Lane Change")
 
         if self.FSM_state.detected_lanelets is not None:
             if len(self.FSM_state.detected_lanelets) > 1 \
@@ -447,6 +452,7 @@ class LogicLaneChangeLeft:
 
 class LogicPrepareLaneChangeRight:
     """logic module for state PrepareLaneChangeRight."""
+
     def __init__(self, start_state, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
@@ -488,6 +494,7 @@ class LogicPrepareLaneChangeRight:
 
 class LogicLaneChangeRight:
     """logic module for state LaneChangeRight."""
+
     def __init__(self, start_state, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
@@ -508,8 +515,8 @@ class LogicLaneChangeRight:
             self.FSM_state.do_lane_change = False
 
         if self.cur_state == 'InitiateLaneChange' and self.FSM_state.situation_time_step_counter > 16:
-            self.FSM_state.lane_change_left_abort = True
-            msg_logger.debug("FSM Dynamic Situation State: Aborting Lane Change")
+            self.FSM_state.lane_change_right_abort = True
+            behavior_message_logger.debug("FSM Dynamic Situation State: Aborting Lane Change")
 
         if self.FSM_state.detected_lanelets is not None:
             if len(self.FSM_state.detected_lanelets) > 1 \
@@ -538,6 +545,7 @@ class LogicLaneChangeRight:
 
 class LogicPrepareLaneMerge:
     """logic module for state PrepareLaneMerge."""
+
     def __init__(self, start_state):
         self.cur_state = start_state
         self.transition = None
@@ -574,6 +582,7 @@ class LogicPrepareLaneMerge:
 
 class LogicLaneMerge:
     """logic module for state LaneMerge."""
+
     def __init__(self, start_state):
         self.cur_state = start_state
         self.transition = None
@@ -605,6 +614,7 @@ class LogicLaneMerge:
 
 class LogicPrepareRoadExit:
     """logic module for state PrepareRoadExit."""
+
     def __init__(self, start_state):
         self.cur_state = start_state
         self.transition = None
@@ -636,6 +646,7 @@ class LogicPrepareRoadExit:
 
 class LogicRoadExit:
     """logic module for state RoadExit."""
+
     def __init__(self, start_state):
         self.cur_state = start_state
         self.transition = None
@@ -665,8 +676,195 @@ class LogicRoadExit:
         self.cur_state = state
 
 
+class LogicPrepareTurnLeft:
+    """logic module for state PrepareTurnLeft."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for PrepareTurnLeft
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # ident Tagert Lane, preceeding Lane and crossing Lane & Obstacles
+        # slow down
+        # TODO: implementation exec Prepare Turn Left
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicTurnLeft:
+    """logic module for state TurnLeft."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for TurnLeft
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # if turn is clear, continue driving
+        # if turn is not clear, stop
+        # wait for clearance
+        # continue driving
+        # TODO: implementation exec Turn Left
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicPrepareTurnRight:
+    """logic module for state PrepareTurnRight."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for PrepareTurnRight
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # ident Tagert Lane, preceeding Lane & Obstacles
+        # slow down
+        # TODO: implementation exec Prepare Turn Right
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicTurnRight:
+    """logic module for state TurnRight."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for TurnRight
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # if turn is clear, continue driving
+        # if turn is not clear, stop
+        # wait for clearance
+        # continue driving
+        # TODO: implementation exec Turn Right
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicPrepareOvertake:
+    """logic module for state PrepareOvertake."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for PrepareOvertake
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # ident Tagert Lane & Obstacles
+        # idet Speed of Obstacles on Target Lane
+        # abort Overtake if obstacles too slow
+        # ident free space if obstacles fast enough
+        # prep Done (continue to Lane Change left)
+        # TODO: implementation exec Prepare Overtake
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicOvertake:
+    """logic module for state Overtake."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for Overtake
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # Lane change left took place already
+        # overtake slow obstacle
+        # overtake complete (continue to finish overtake)
+        # TODO: implementation exec Overtake
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicFinishOvertake:
+    """logic module for state FinishOvertake."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for FinishOvertake
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # ident Tagert Lane & Obstacles
+        # idet Speed of Obstacles on Target Lane
+        # abort Finishing if further obstacles are slow
+        # ident free space if obstacles are fast or clear
+        # finish Done (continue to Lane Change right)
+        # TODO: implementation exec Finish Overtake
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
 class LogicPrepareTrafficLight:
     """logic module for state PrepareTrafficLight."""
+
     def __init__(self, start_state, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
@@ -701,6 +899,7 @@ class LogicPrepareTrafficLight:
 
 class LogicTrafficLight:
     """logic module for state TrafficLight."""
+
     def __init__(self, start_state, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
@@ -739,6 +938,160 @@ class LogicTrafficLight:
                 self.FSM_state.waiting_for_green_light = False
 
         return self.transition, self.cur_state
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicPrepareCrosswalk:
+    """logic module for state PrepareCrosswalk."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for PrepareCrosswalk
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # observing obstacles at crosswalk
+        # slowing down
+        # TODO: implementation exec Prepare Crosswalk
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicCrosswalk:
+    """logic module for state Crosswalk."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for Crosswalk
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # stopping
+        # wait for obstacle clearance
+        # continue driving
+        # TODO: implementation exec Crosswalk
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicPrepareStopSign:
+    """logic module for state PrepareStopSign."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for PrepareStopSign
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # identify target lane and obstacles
+        # observing target lane
+        # TODO: implementation exec Prepare Stop Sign
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicStopSign:
+    """logic module for state StopSign."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for StopSign
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # stopping
+        # wait for target lane clearance
+        # continue driving
+        # TODO: implementation exec Stop Sign
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicPrepareYieldSign:
+    """logic module for state PrepareYieldSign."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for PrepareYieldSign
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # identify target lane and obstacles
+        # observing target lane
+        # slowing down
+        # TODO: implementation exec Prepare Yield Sign
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicYieldSign:
+    """logic module for state YieldSign."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for YieldSign
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # stopping
+        # wait for target lane clearance
+        # continue driving
+        # TODO: implementation exec Yield Sign
+
+        return None
 
     def reset_state(self, state):
         self.cur_state = state

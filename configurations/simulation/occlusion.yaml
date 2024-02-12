@@ -2,27 +2,27 @@
 # PLEASE FIND INFORMATION HERE: https://github.com/TUM-AVS/Frenetix-Occlusion
 #############################################################################
 
-use_occlusion_module: False # Does not work in every combination, e.g. multiagent
+##############################################################################
+# Frenetix Occlusion settings
+##############################################################################
+use_occlusion_module: False # or False
 
-# sensor model settings
-sensor_model:
-  sensor_radius: 50
-  sensor_angle: 360
 
-plot: False
+##############################################################################
+# Metric and threshold settings: set metrics and their threshold
+##############################################################################
 
 metrics:
   activated_metrics: # all available metrics: ['hr', 'ttc', 'be', 'ttce', 'dce', 'wttc', 'cp']
     - 'hr'
     - 'ttc'
-    - 'be'
     - 'ttce'
     - 'dce'
     - 'wttc'
     - 'cp'
 
-  metric_thresholds:
-    harm: 1
+  metric_thresholds: # max 1, null means deactivated
+    harm: 0.1
     risk: 1
     be: null
     cp: null
@@ -31,12 +31,64 @@ metrics:
     ttce: null
     dce: null
 
+
+##############################################################################
+# Sensor Model settings: define the sensor radius and angle
+##############################################################################
+
+sensor_model:
+  sensor_radius: 50
+  sensor_angle: 360
+
+
+##############################################################################
+# Spawn point settings: define where and how many spawn points shall be added
+##############################################################################
+
 spawn_locator:
-  spawn_points_behind_turn: True
-  spawn_point_behind_dynamic_obstacle: True
-  spawn_point_behind_static_obstacle: True
+  spawn_points_behind_turn: False
+  spawn_point_behind_dynamic_obstacle: False
+  spawn_point_behind_static_obstacle: False
   max_dynamic_spawn_points: 1
   max_static_spawn_points: 1
+
+
+##############################################################################
+# Real agent settings: define agents that shall be added to the real scenario
+##############################################################################
+
+# agents for left turn in intersection (bicyclist emerging behind car, scenario 1 in our paper)
+# to resimulate the paper experiments, some adjustments must be done(see Readme)
+
+#agents:
+#  - position: [31.3, 0]
+#    velocity: 8
+#    agent_type: "Car"
+#    timestep: 0
+#    horizon: 5.0
+#  - position: [36.4, 1]
+#    velocity: 6
+#    agent_type: "Bicycle"
+#    timestep: 0
+#    horizon: 5.0
+
+# agents for left turn in intersection (bicyclist emerging behind truck, scenario 2 in our paper)
+agents:
+  - position: [16, 2.8]
+    velocity: 8
+    agent_type: "Truck"
+    timestep: 0
+    horizon: 5.0
+  - position: [14.4, 6.9]
+    velocity: 5.5
+    agent_type: "Bicycle"
+    timestep: 6
+    horizon: 5.0
+
+
+##############################################################################
+# expert settings: agent parameters and debug plot
+##############################################################################
 
 agent_manager:
   prediction:
@@ -65,3 +117,6 @@ agent_manager:
     length: 0.3
     width: 0.5
 
+# debug settings
+plot: False
+debug: False

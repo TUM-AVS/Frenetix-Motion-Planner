@@ -14,7 +14,7 @@ from commonroad.scenario.traffic_sign_interpreter import TrafficSigInterpreter
 from commonroad.scenario.lanelet import LaneletType
 from commonroad.scenario.traffic_sign import SupportedTrafficSignCountry
 
-from commonroad_route_planner.utility.route import chaikins_corner_cutting, resample_polyline
+from commonroad_dc.geometry.util import chaikins_corner_cutting, resample_polyline
 
 
 def get_remaining_path(ego_state, ref_path):
@@ -259,39 +259,60 @@ def get_predicted_obstacles_on_lanelet(predictions, lanelet_network, lanelet_id,
 
 
 def create_consecutive_lanelet_id_list(lanelet_network, start_lanelet_id, navigation_route_ids=None):
+    allowed_loops = 0  # TODO: move to config, might be helpful at some time
     consecutive_lanelet_ids = [start_lanelet_id]
     # predecessors
     end = False
     while not end:
         lanelet = lanelet_network.find_lanelet_by_id(consecutive_lanelet_ids[0])
         if lanelet.predecessor:
-            if len(lanelet.predecessor) == 1:
-                consecutive_lanelet_ids = lanelet.predecessor + consecutive_lanelet_ids
-            else:
-                consecutive_lanelet_ids = [lanelet.predecessor[0]] + consecutive_lanelet_ids
+            # avoid duplicate lanelets from circles in lanelet_network
+            unique_lanelet_ids, counts = np.unique(consecutive_lanelet_ids, return_counts=True)
+            counts_dict = dict(zip(unique_lanelet_ids, counts))
+
+            for predecessor in lanelet.predecessor:
+                if counts_dict.get(predecessor) is None or counts_dict.get(predecessor) <= max(allowed_loops - 1, 0):
+                    consecutive_lanelet_ids = [predecessor] + consecutive_lanelet_ids
+                    end = True
+                    break
+            end = not end
         else:
             end = True
+
     # successors
     end = False
     while not end:
         lanelet = lanelet_network.find_lanelet_by_id(consecutive_lanelet_ids[-1])
         if lanelet.successor:
-            if len(lanelet.successor) == 1:
-                consecutive_lanelet_ids += lanelet.successor
+            # avoid duplicate lanelets from circles in lanelet_network
+            unique_lanelet_ids, counts = np.unique(consecutive_lanelet_ids, return_counts=True)
+            counts_dict = dict(zip(unique_lanelet_ids, counts))
+
+            if navigation_route_ids is not None:  # TODO: remove and plan to the end of the scenario
+                for succsessor in lanelet.successor:
+                    if ((succsessor in navigation_route_ids or succsessor not in navigation_route_ids)
+                            and (counts_dict.get(succsessor) is None
+                                 or counts_dict.get(succsessor) <= max(allowed_loops, 1))):
+                        consecutive_lanelet_ids += [succsessor]
+                        end = True
+                        break
+                end = not end
             else:
-                if navigation_route_ids is not None:
-                    for successor_id in lanelet.successor:
-                        if successor_id in navigation_route_ids:
-                            consecutive_lanelet_ids += [successor_id]
-                else:
-                    consecutive_lanelet_ids += [lanelet.successor[0]]
+                for succsessor in lanelet.successor:
+                    if counts_dict.get(succsessor) is None or counts_dict.get(succsessor) <= max(allowed_loops, 1):
+                        consecutive_lanelet_ids += [succsessor]
+                        end = True
+                        break
+                end = not end
         else:
             end = True
     return consecutive_lanelet_ids
 
 
 def retrieve_glb_nav_path_lane_changes(route):
-    lane_changes = route._compute_lane_change_instructions()
+    # TODO: get lane changes
+    # lane_changes = route._compute_lane_change_instructions()
+    lane_changes = []
     return lane_changes
 
 
@@ -313,7 +334,7 @@ def compute_straight_reference_path(lanelet_network, list_ids_lanelets):
     return reference_path
 
 
-def smooth_reference_path(reference_path):
-    reference_path_resampled = resample_polyline(reference_path, 2)
-    reference_path_smooth = chaikins_corner_cutting(reference_path_resampled)
-    return reference_path_smooth
+# def smooth_reference_path(reference_path):
+#     reference_path_resampled = resample_polyline(reference_path, 2)
+#     reference_path_smooth = chaikins_corner_cutting(reference_path_resampled)
+#     return reference_path_smooth
