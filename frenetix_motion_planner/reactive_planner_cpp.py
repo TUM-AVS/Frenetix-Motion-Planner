@@ -8,7 +8,6 @@ __status__ = "Beta"
 # python packages
 import time
 import numpy as np
-import copy
 from itertools import product
 from typing import List
 
@@ -69,8 +68,8 @@ class ReactivePlannerCpp(Planner):
 
                 # Symmetrize the covariance matrix if necessary and convert to float64
                 covariance = pred['cov_list'][time_step].astype(np.float64)
-                if not np.array_equal(covariance, covariance.T, equal_nan=True):
-                    covariance = ((covariance + covariance.T) / 2).astype(np.float64)
+                # if not np.array_equal(covariance, covariance.T):
+                # covariance = ((covariance + covariance.T) / 2).astype(np.float64)
 
                 # Create the covariance matrix for PoseWithCovariance
                 covariance_matrix = np.zeros((6, 6), dtype=np.float64)
@@ -81,8 +80,7 @@ class ReactivePlannerCpp(Planner):
                 predicted_path[time_step] = pwc
 
             # Store the resulting predicted path
-            self.predictionsForCpp[key] = frenetix.PredictedObject(int(key), predicted_path,
-                                                                   pred['shape']['length'], pred['shape']['width'])
+            self.predictionsForCpp[key] = frenetix.PredictedObject(int(key), predicted_path, pred['shape']['length'], pred['shape']['width'])
 
     def set_cost_function(self, cost_weights):
         self.config_plan.cost.cost_weights = cost_weights

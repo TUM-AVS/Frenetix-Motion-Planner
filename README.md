@@ -1,7 +1,7 @@
 [![DOI](https://zenodo.org/badge/700239470.svg)](https://zenodo.org/records/10078062)
 
 [![Linux](https://img.shields.io/badge/os-linux-blue.svg)](https://www.linux.org/)
-[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/) [![Python 3.9](https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/release/python-390/)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/) [![Python 3.9](https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/release/python-390/)
 
 
 # Frenetix Motion Planner & Multi-agent Scenario Handler
@@ -18,7 +18,7 @@ The multi-agent simulation can be used to integrate and test different planning 
 
 ### Requirements
 The software is  developed and tested on recent versions of Linux. We strongly recommend to use [Ubuntu 22.04](https://ubuntu.com/download/desktop) or higher.
-For the python installation, we suggest the usage of Virtual Environment with Python 3.10 or Python 3.9
+For the python installation, we suggest the usage of Virtual Environment with Python 3.11, Python 3.10 or Python 3.9
 For the development IDE we suggest [PyCharm](http://www.jetbrains.com/pycharm/)
 
 ### Pre-installation Steps
@@ -29,10 +29,10 @@ For the development IDE we suggest [PyCharm](http://www.jetbrains.com/pycharm/)
      * On Ubuntu: `sudo apt-get install libboost-all-dev`
    * [OpenMP](https://www.openmp.org/) 
      * On Ubuntu: `sudo apt-get install libomp-dev`
-   * [python3.10-full](https://packages.ubuntu.com/jammy/python3.10-full) 
-        * On Ubuntu: `sudo apt-get install python3.10-full` and `sudo apt-get install python3.10-dev`
+   * [python3.11-full](https://packages.ubuntu.com/jammy/python3.11-full) 
+        * On Ubuntu: `sudo apt-get install python3.11-full` and `sudo apt-get install python3.11-dev`
 
-2. **Clone** this repository & create a new virtual environment `python3.10 -m venv venv`
+2. **Clone** this repository & create a new virtual environment `python3.11 -m venv venv`
 
 3. **Install** the package:
     * Source & Install the package via pip: `source venv/bin/activate` & `pip install .` or `poetry install`

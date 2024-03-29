@@ -126,7 +126,7 @@ def collision_check_prediction(
     # check every obstacle in the predictions
     for obstacle in scenario.obstacles:
         obstacle_id = obstacle.obstacle_id
-        if obstacle_id not in predictions or obstacle.state_at_time(time_step).velocity > 5:
+        if obstacle_id not in predictions:  # or obstacle.state_at_time(time_step).velocity > 5:
             continue
         # check if the obstacle is not a rectangle (only shape with attribute length)
         if not hasattr(scenario.obstacle_by_id(obstacle_id).obstacle_shape, 'length'):
@@ -137,13 +137,13 @@ def collision_check_prediction(
             length = predictions[obstacle_id]['shape']['length']
             width = predictions[obstacle_id]['shape']['width']
 
-            # only check for collision as long as both trajectories (frenét trajectory and prediction) are visible
-            if obstacle.obstacle_role == ObstacleRole.DYNAMIC:
-                pred_traj = np.reshape(np.repeat(scenario.obstacle_by_id(obstacle_id).state_at_time(time_step).position,
-                                                 len((predictions[obstacle_id]['pos_list']))),
-                                       (len((predictions[obstacle_id]['pos_list'])), 2), order='F')
-            else:
-                pred_traj = predictions[obstacle_id]['pos_list']
+            # # only check for collision as long as both trajectories (frenét trajectory and prediction) are visible
+            # if obstacle.obstacle_role == ObstacleRole.STATIC:
+            #     pred_traj = np.reshape(np.repeat(scenario.obstacle_by_id(obstacle_id).state_at_time(time_step).position,
+            #                                      len((predictions[obstacle_id]['pos_list']))),
+            #                            (len((predictions[obstacle_id]['pos_list'])), 2), order='F')
+            # else:
+            pred_traj = predictions[obstacle_id]['pos_list']
             pred_length = min(len(frenet_traj.cartesian.x), len(pred_traj))
             if pred_length == 0:
                 continue
@@ -151,11 +151,13 @@ def collision_check_prediction(
             # get x, y and orientation of the prediction
             x = pred_traj[:, 0][0:pred_length]
             y = pred_traj[:, 1][0:pred_length]
-            if obstacle.obstacle_role == ObstacleRole.DYNAMIC:
-                pred_orientation = np.repeat(scenario.obstacle_by_id(obstacle_id).state_at_time(time_step).orientation,
-                                             len((predictions[obstacle_id]['orientation_list'])))
-            else:
-                pred_orientation = predictions[obstacle_id]['orientation_list']
+
+            # if obstacle.obstacle_role == ObstacleRole.DYNAMIC:
+            #     pred_orientation = np.repeat(scenario.obstacle_by_id(obstacle_id).state_at_time(time_step).orientation,
+            #                                  len((predictions[obstacle_id]['orientation_list'])))
+            # else:
+
+            pred_orientation = predictions[obstacle_id]['orientation_list']
 
             # create a time variant collision object for the predicted vehicle
             traj = [[x[i], y[i], pred_orientation[i]] for i in range(pred_length)]

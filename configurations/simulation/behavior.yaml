@@ -3,7 +3,13 @@
 ###############################################################################
 
 # Use Behavior Planner
-use_behavior_planner: False
+use_behavior_planner: False  # WARNING: This is a Beta Version
+
+# path_planner configs
+dist_between_points: 0.125
+
+# velocity_planner configs
+#min_TTC_to_preceading_vehicle: 3.0
 
 # Behavior Logging
 behavior_log_mode: DEBUG  # Options: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL

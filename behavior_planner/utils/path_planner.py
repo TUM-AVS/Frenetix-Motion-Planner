@@ -104,7 +104,7 @@ class RoutePlan(object):
         self.lanelet_network = lanelet_network
         self.global_nav_route = global_nav_route
         self.global_nav_path = global_nav_route.reference_path
-        self.global_nav_path_ids = global_nav_route.set_ids_lanelets_permissible
+        self.global_nav_path_ids = global_nav_route.lanelet_ids
         self.cl_nav_coordinate_system = CoordinateSystem(reference=self.global_nav_path, config_sim=config_sim)
 
         self.static_route_plan = None
@@ -455,13 +455,19 @@ class ReferencePath(object):
     def _create_base_ref_path(self, global_nav_route):
         # create lanelet list for straight base route
         base_lanelet_ids = hf.create_consecutive_lanelet_id_list(self.lanelet_network,
-                                                                 global_nav_route.list_ids_lanelets[0],
+                                                                 global_nav_route.lanelet_ids[0],
                                                                  self.BM_state.PP_state.route_plan_ids)
 
         # create base reference path
-        base_ref_path = hf.compute_straight_reference_path(self.lanelet_network, base_lanelet_ids)
+        straight_ref_path = hf.compute_straight_reference_path(self.lanelet_network, base_lanelet_ids)
+        base_ref_path = hf.optimize_reference_path(self.lanelet_network, straight_ref_path)
         self.list_ids_ref_path = base_lanelet_ids
-        self.reference_path = base_ref_path  # smooth_ref_path(base_ref_path)
+        self.reference_path = smooth_ref_path(base_ref_path)
+
+        # TODO adapt the code above to the new cr route planner, until then use the cr route planner routes
+        self.list_ids_ref_path = global_nav_route.lanelet_ids
+        self.reference_path = global_nav_route.reference_path
+
         # update curvilinear reference coordinate system
         self._update_cl_ref_coordinate_system()
 
@@ -482,8 +488,8 @@ class ReferencePath(object):
         old_path = old_path[:cut_idx_old + self.BM_state.future_factor, :]
         new_path = new_path[self.BM_state.future_factor + cut_idx_new + number_vertices_lane_change:, :]
         # create final reference path
-        self.reference_path = np.concatenate((old_path, new_path), axis=0)
-        # self.reference_path = smooth_ref_path(reference_path)
+        reference_path = np.concatenate((old_path, new_path), axis=0)
+        self.reference_path = smooth_ref_path(reference_path)
 
 
 class StaticGoal(object):

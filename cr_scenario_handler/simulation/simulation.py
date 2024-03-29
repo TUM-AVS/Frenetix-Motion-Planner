@@ -68,6 +68,7 @@ class Simulation:
         init_time_start = time.perf_counter()
 
         self.config = config_sim
+        self.config_planner = config_planner
         self.config_simulation = config_sim.simulation
         self.config_visu = config_sim.visualization
         self.config_eval = None
@@ -89,6 +90,7 @@ class Simulation:
 
         # Create and preprocess the scenario, create planning problems and find agent-IDs
         self.global_timestep = -1
+        self.replanning_counter = 0
         scenario, self.planning_problem_set = self._open_scenario()
         self.original_agent_id = list(self.planning_problem_set.planning_problem_dict.keys())
         if self.config_simulation.use_multiagent:
@@ -128,8 +130,7 @@ class Simulation:
 
         self.process_times = dict()
 
-        if (self.config.evaluation.evaluate_simulation or self.config.evaluation.evaluate_runtime
-                and not self.config.occlusion.use_occlusion_module):
+        if self.config.evaluation.evaluate_simulation or self.config.evaluation.evaluate_runtime:
             # if logging is activated log meta data of simulation
             self.sim_logger.log_meta(agent_ids=self.agent_id_list,
                                      original_planning_problem_id=self.original_agent_id,
@@ -392,8 +393,8 @@ class Simulation:
                                  shape, center_lanelet_assignment=lanelet_assigned)
         )
         # otherwise prediction of this obstacle not available not used
-        dummy_obstacle.prediction.final_time_step += 1
-        dummy_obstacle.prediction.initial_time_step += 1
+        # dummy_obstacle.prediction.final_time_step += 1
+        # dummy_obstacle.prediction.initial_time_step += 1
         return dummy_obstacle
 
     def _load_external_modules(self):
@@ -587,6 +588,8 @@ class Simulation:
         """
         Does a single simulation step in the single-process setting
         """
+        if int(self.replanning_counter / self.config_planner.planning.replanning_frequency) == 1:
+            self.replanning_counter = 0
 
         # update Scenario, calculate new predictions and check for collision of prev. iteration
         self.global_predictions, colliding_agents = self.prestep_simulation()
@@ -594,6 +597,8 @@ class Simulation:
         # perform single simulation step in agent batch
         self.batch_list[0].step_simulation(self.scenario, self.global_timestep, self.global_predictions,
                                            colliding_agents)
+
+        self.replanning_counter += 1
 
         running = not self.batch_list[0].finished
         return running
@@ -684,8 +689,11 @@ class Simulation:
         # update scenario
         self.update_scenario()
         # Calculate new predictions
-        predictions = ph.get_predictions(self.config, self._predictor, self.scenario, self.global_timestep,
-                                         self.prediction_horizon)
+        if self.replanning_counter == 0 or self.config_planner.planning.replanning_frequency < 2:
+            predictions = ph.get_predictions(self.config, self._predictor, self.scenario, self.global_timestep,
+                                             self.prediction_horizon)
+        else:
+            predictions = None
 
         self.process_times["preprocessing"] = time.perf_counter() - preproc_time
         return predictions, colliding_agents

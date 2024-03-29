@@ -28,7 +28,7 @@ class GoalReachedChecker:
         self.status = []
         self.current_time = None
 
-    def _initialize_last_goal_position(self, planning_horizon_in_seconds=3.0, default_velocity=5.0):
+    def _initialize_last_goal_position(self, planning_horizon_in_seconds=0.5, default_velocity=1.0):
         """Initializes the last goal position."""
         last_pos_in_goal = None
         position_available = False

@@ -5,11 +5,10 @@ __maintainer__ = "Rainer Trauth"
 __email__ = "rainer.trauth@tum.de"
 __status__ = "Beta"
 
-import os
 from copy import deepcopy
 import numpy as np
 
-from commonroad.geometry.shape import Rectangle, ShapeGroup
+from commonroad.geometry.shape import Rectangle
 from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.scenario.obstacle import DynamicObstacle, ObstacleType
 from commonroad.scenario.scenario import Scenario
@@ -19,15 +18,14 @@ import cr_scenario_handler.utils.multiagent_logging as lh
 from behavior_planner.behavior_module import BehaviorModule
 from cr_scenario_handler.planner_interfaces.planner_interface import PlannerInterface
 import cr_scenario_handler.utils.goalcheck as gc
-import cr_scenario_handler.utils.helper_functions as hf
-from cr_scenario_handler.utils.utils_coordinate_system import smooth_ref_path, extend_ref_path
+from cr_scenario_handler.utils.utils_coordinate_system import smooth_ref_path, extend_ref_path_both_ends
 from cr_scenario_handler.utils.velocity_planner import VelocityPlanner
 
 from frenetix_motion_planner.reactive_planner import ReactivePlannerPython
 from frenetix_motion_planner.reactive_planner_cpp import ReactivePlannerCpp
 from frenetix_motion_planner.state import ReactivePlannerState
 
-from frenetix_occlusion.interface import FOInterface
+# from frenetix_occlusion.interface import FOInterface
 
 # msg_logger = logging.getLogger("Message_logger")
 
@@ -100,30 +98,19 @@ class FrenetPlannerInterface(PlannerInterface):
 
         # Set reference path
         if not self.config_sim.behavior.use_behavior_planner:
-            self.route_planner = RoutePlanner(scenario=scenario, planning_problem=planning_problem)
-            self.reference_path = self.route_planner.plan_routes().retrieve_first_route().reference_path
+            self.route_planner = RoutePlanner(scenario=scenario, planning_problem=planning_problem,
+                                              extended_search=False)
+            shortest_route = self.route_planner.plan_routes().retrieve_shortest_route(retrieve_shortest=True)
 
-            try:
-                self.reference_path, _ = self.route_planner.extend_reference_path_at_start(reference_path=self.reference_path,
-                                                                                  initial_position_cart=self.x_0.position,
-                                                                                  additional_lenght_in_meters=10.0)
-            except:
-                self.reference_path = extend_ref_path(self.reference_path, self.x_0.position)
+            # # Init route extendor
+            # route_extendor: RouteExtendor = RouteExtendor(shortest_route, extrapolation_length=50)
+            #
+            # # Extend reference path at start and end
+            # route_extendor.extend_reference_path_at_start_and_end()
+            reference_path = extend_ref_path_both_ends(shortest_route.reference_path)
 
-            self.reference_path = smooth_ref_path(self.reference_path)
+            self.reference_path = smooth_ref_path(reference_path)
 
-            end_velocity = getattr(getattr(self.planning_problem.goal.state_list[0], 'velocity', None), 'end', 10)
-            end_pos = getattr(self.planning_problem.goal.state_list[0], 'position', None)
-            if end_pos:
-                center = end_pos.center if not type(end_pos) == ShapeGroup else end_pos.shapes[0].center
-                diff = np.min(np.linalg.norm(self.reference_path - center, axis=1))
-            else:
-                diff = 0
-            additional_length_in_meters = diff + end_velocity * (config_planner.planning.planning_horizon + 1.0)
-
-            self.reference_path, _ = hf.extend_reference_path_at_end(reference_path=self.reference_path,
-                                                                     final_position=self.reference_path[-1],
-                                                                     additional_lenght_in_meters=additional_length_in_meters)
         else:
             self.behavior_modul = BehaviorModule(scenario=scenario,
                                                  planning_problem=planning_problem,
@@ -135,12 +122,12 @@ class FrenetPlannerInterface(PlannerInterface):
 
         self.goal_area = gc.get_goal_area_shape_group(planning_problem=planning_problem, scenario=scenario)
 
-        # **************************
-        # Initialize Occlusion Module
-        # **************************
-        if self.config_sim.occlusion.use_occlusion_module:
-            self.occlusion_module = FOInterface(scenario, self.reference_path, self.config_sim.vehicle, self.DT,
-                                                os.path.join(self.mod_path, "configurations", "simulation", "occlusion.yaml"))
+        # *******************************************************************************
+        # Initialize Occlusion Module GO to: https://github.com/TUM-AVS/Frenetix-Occlusion
+        # ********************************************************************************
+        # if self.config_sim.occlusion.use_occlusion_module:
+        #     self.occlusion_module = FOInterface(scenario, self.reference_path, self.config_sim.vehicle, self.DT,
+        #                             os.path.join(self.mod_path, "configurations", "simulation", "occlusion.yaml"))
 
         # **************************
         # Set External Planner Setups

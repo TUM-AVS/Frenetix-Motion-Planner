@@ -10,11 +10,12 @@ from shapely.geometry import LineString, Point
 
 # commonroad imports
 from commonroad.geometry.shape import Rectangle
-from commonroad.scenario.traffic_sign_interpreter import TrafficSigInterpreter
+from commonroad.scenario.traffic_sign_interpreter import TrafficSignInterpreter
 from commonroad.scenario.lanelet import LaneletType
 from commonroad.scenario.traffic_sign import SupportedTrafficSignCountry
 
-from commonroad_dc.geometry.util import chaikins_corner_cutting, resample_polyline
+from commonroad_dc.geometry.util import resample_polyline
+from cr_scenario_handler.utils.utils_coordinate_system import smooth_ref_path
 
 
 def get_remaining_path(ego_state, ref_path):
@@ -28,9 +29,7 @@ def sort_by_distance(ego_state, objects):
     return obj_sorted
 
 
-def calc_remaining_time_steps(
-    ego_state_time: float, t: float, planning_problem, dt: float
-):
+def calc_remaining_time_steps(ego_state_time: float, t: float, planning_problem, dt: float):
     """
     Get the minimum and maximum amount of remaining time steps.
 
@@ -47,10 +46,10 @@ def calc_remaining_time_steps(
     considered_time_step = int(ego_state_time + t / dt)
     if hasattr(planning_problem.goal.state_list[0], "time_step"):
         min_remaining_time = (
-            planning_problem.goal.state_list[0].time_step.start - considered_time_step
+                planning_problem.goal.state_list[0].time_step.start - considered_time_step
         )
         max_remaining_time = (
-            planning_problem.goal.state_list[0].time_step.end - considered_time_step
+                planning_problem.goal.state_list[0].time_step.end - considered_time_step
         )
         return min_remaining_time, max_remaining_time
     else:
@@ -110,9 +109,9 @@ def get_lanelet_information(scenario, reference_path_ids, ego_state, country: Su
 
     Returns:
         int: current_lanelet_id, speed_limit
-        str: street setting ('Highway', 'Country', 'Urban)
+        str: street setting ('Highway', 'Country', 'Urban')
     """
-    traffic_signs = TrafficSigInterpreter(country=country, lanelet_network=scenario.lanelet_network)
+    traffic_signs = TrafficSignInterpreter(country=country, lanelet_network=scenario.lanelet_network)
 
     current_position = ego_state.position
     current_lanelets = scenario.lanelet_network.find_lanelet_by_position([current_position])[0]
@@ -131,7 +130,6 @@ def get_lanelet_information(scenario, reference_path_ids, ego_state, country: Su
                 current_lanelet = current_lanelets[0]
     else:
         print("no lanelets detected")
-
 
     # check for street setting
     lanelet_type = scenario.lanelet_network.find_lanelet_by_id(current_lanelet).lanelet_type
@@ -239,7 +237,7 @@ def get_predicted_obstacles_on_lanelet(predictions, lanelet_network, lanelet_id,
             obstacle_orientation = predictions.get(obstacle_id).get('orientation_list')[0]
             obstacle_length = predictions.get(obstacle_id).get('shape').get('length')
             obstacle_width = predictions.get(obstacle_id).get('shape').get('width')
-            obstacle_shape = Rectangle(length=obstacle_length*2, width=obstacle_width*0.2, center=obstacle_position,
+            obstacle_shape = Rectangle(length=obstacle_length * 2, width=obstacle_width * 0.2, center=obstacle_position,
                                        orientation=obstacle_orientation)
             obstacle_lanelet_ids = lanelet_network.find_lanelet_by_shape(obstacle_shape)
         else:
@@ -259,25 +257,16 @@ def get_predicted_obstacles_on_lanelet(predictions, lanelet_network, lanelet_id,
 
 
 def create_consecutive_lanelet_id_list(lanelet_network, start_lanelet_id, navigation_route_ids=None):
-    allowed_loops = 0  # TODO: move to config, might be helpful at some time
-    consecutive_lanelet_ids = [start_lanelet_id]
-    # predecessors
-    end = False
-    while not end:
-        lanelet = lanelet_network.find_lanelet_by_id(consecutive_lanelet_ids[0])
-        if lanelet.predecessor:
-            # avoid duplicate lanelets from circles in lanelet_network
-            unique_lanelet_ids, counts = np.unique(consecutive_lanelet_ids, return_counts=True)
-            counts_dict = dict(zip(unique_lanelet_ids, counts))
+    """creates a list of lanelet_ids that are the basis for the reference path
+    TODO: deal with loops in the lanelet network
+    TODO: plan route further than navigation route
 
-            for predecessor in lanelet.predecessor:
-                if counts_dict.get(predecessor) is None or counts_dict.get(predecessor) <= max(allowed_loops - 1, 0):
-                    consecutive_lanelet_ids = [predecessor] + consecutive_lanelet_ids
-                    end = True
-                    break
-            end = not end
-        else:
-            end = True
+    :param lanelet_network: scenario.lanelet_network
+    :param start_lanelet_id: lanelet_id of initial state
+    :param navigation_route_ids: lanelet ids of existing route, if available
+
+    :return: list of lanelet_ids"""
+    consecutive_lanelet_ids = [start_lanelet_id]
 
     # successors
     end = False
@@ -288,19 +277,18 @@ def create_consecutive_lanelet_id_list(lanelet_network, start_lanelet_id, naviga
             unique_lanelet_ids, counts = np.unique(consecutive_lanelet_ids, return_counts=True)
             counts_dict = dict(zip(unique_lanelet_ids, counts))
 
-            if navigation_route_ids is not None:  # TODO: remove and plan to the end of the scenario
-                for succsessor in lanelet.successor:
-                    if ((succsessor in navigation_route_ids or succsessor not in navigation_route_ids)
-                            and (counts_dict.get(succsessor) is None
-                                 or counts_dict.get(succsessor) <= max(allowed_loops, 1))):
-                        consecutive_lanelet_ids += [succsessor]
+            if navigation_route_ids is not None:
+                for successor in lanelet.successor:
+                    if ((successor in navigation_route_ids)
+                            and (counts_dict.get(successor) is None)):
+                        consecutive_lanelet_ids += [successor]
                         end = True
                         break
                 end = not end
             else:
-                for succsessor in lanelet.successor:
-                    if counts_dict.get(succsessor) is None or counts_dict.get(succsessor) <= max(allowed_loops, 1):
-                        consecutive_lanelet_ids += [succsessor]
+                for successor in lanelet.successor:
+                    if counts_dict.get(successor) is None:
+                        consecutive_lanelet_ids += [successor]
                         end = True
                         break
                 end = not end
@@ -316,25 +304,92 @@ def retrieve_glb_nav_path_lane_changes(route):
     return lane_changes
 
 
-def compute_straight_reference_path(lanelet_network, list_ids_lanelets):
-    """Computes reference path given the list of portions of each lanelet
+def compute_straight_reference_path(lanelet_network, list_ids_lanelets, point_dist: float = 0.125):
+    """Computes a straight reference path given the list of portions of each lanelet
 
     lanelet_network (LaneletNetwork): lanelet_network of scenario
     list_ids_lanelets (List(int)): list of lanelet ids
     """
-    reference_path = None
+    straight_reference_path = None
     for lanelet_id in list_ids_lanelets:
         lanelet = lanelet_network.find_lanelet_by_id(lanelet_id)
-        if reference_path is None:
-            reference_path = lanelet.center_vertices
+        if straight_reference_path is None:
+            straight_reference_path = lanelet.center_vertices
         else:
-            reference_path = np.concatenate((reference_path, lanelet.center_vertices), axis=0)
+            straight_reference_path = np.concatenate((straight_reference_path, lanelet.center_vertices), axis=0)
 
-    reference_path = resample_polyline(reference_path, 1)
+    return resample_polyline(straight_reference_path, point_dist)  # TODO get step size via config
+
+
+def optimize_reference_path(lanelet_network, straight_reference_path, goal_polygons=None, goal_lanelet_ids=None,
+                            additional_meters: int = 5, point_dist: float = 0.125):
+    """Optimizes the reference_path
+
+    ensures that the reference path passes through a goal polygon
+    smooths the reference path
+    adds five meters to the beginning and end of the reference path
+
+    :param straight_reference_path: array containing the coordinates of the reference path.
+    :param goal_polygons: array containing the polygons of the goal area.
+    :param goal_lanelet_ids: array containing the lanelet ids of the goal area.
+    :param additional_meters: meters that will be added to the beginning and end of the reference path.
+    :param point_dist: desired distance between the reference path points
+    :return: array containing the coordinates of the optimized reference path.
+
+    """
+    # TODO ensure that the reference path passes through a goal polygon
+    if goal_polygons is not None:
+
+        # check if the reference path intersects the goal area
+        meters_in_goal = 0
+        for polygon in goal_polygons:
+            previous_coordinate = straight_reference_path[0]
+            for coordinate in straight_reference_path[1:]:
+                if polygon.contains_point(coordinate):
+                    meters_in_goal += np.linalg.norm(previous_coordinate, coordinate)
+                previous_coordinate = coordinate
+
+        # check if goal position is defined by lanelets
+        if goal_lanelet_ids is not None and len(goal_lanelet_ids) > 0:
+            goal_lanelets = []
+            for lanelet_id in goal_lanelet_ids:
+                goal_lanelets.append(lanelet_network.find_lanelet_by_id(lanelet_id))
+
+    # smooths the reference path
+    reference_path = smooth_reference_path(straight_reference_path)
+
+    # adds five meters to the beginning and end of the reference path
+    extension_vector_beginning = np.array([reference_path[0][0] - reference_path[1][0],
+                                           reference_path[0][1] - reference_path[1][1]])
+    extended_beginning_point = np.array([reference_path[0] +
+                                         (additional_meters / np.linalg.norm(
+                                             extension_vector_beginning)) * extension_vector_beginning])
+
+    extension_vector_end = np.array([reference_path[-1][0] - reference_path[-2][0],
+                                     reference_path[-1][1] - reference_path[-2][1]])
+    extended_end_point = np.array([reference_path[-1] +
+                                   (additional_meters / np.linalg.norm(
+                                       extension_vector_end)) * extension_vector_end])
+
+    reference_path = np.concatenate((extended_beginning_point, reference_path, extended_end_point))
+
+    # set desired distance between points
+    reference_path = resample_polyline(reference_path, point_dist)
+
     return reference_path
 
 
-# def smooth_reference_path(reference_path):
-#     reference_path_resampled = resample_polyline(reference_path, 2)
-#     reference_path_smooth = chaikins_corner_cutting(reference_path_resampled)
-#     return reference_path_smooth
+def smooth_reference_path(reference_path):
+    """
+    smooth the reference path
+
+    :param reference_path: array containing the coordinates of the reference path.
+    :return: array containing the coordinates of the smoothed reference path.
+    """
+    # hard-coded so that the smoothing works consistently
+    reference_path_resampled = resample_polyline(reference_path, 0.125)
+
+    # smooth the reference path
+    reference_path_smooth = smooth_ref_path(reference_path_resampled)
+
+    return reference_path_smooth

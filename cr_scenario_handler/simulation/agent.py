@@ -169,14 +169,16 @@ class Agent:
         if not collision:
             if self.config_simulation.use_multiagent:
                 self.scenario = hf.scenario_without_obstacle_id(scenario=deepcopy(scenario), obs_ids=[self.id])
-
-            self.predictions, self.visible_area = ph.filter_global_predictions(self.scenario, global_predictions,
-                                                                               self.vehicle_history[-1],
-                                                                               time_step,
-                                                                               self.config,
-                                                                               occlusion_module=self.planner_interface.occlusion_module,
-                                                                               ego_id=self.id,
-                                                                               msg_logger=self.msg_logger)
+            if global_predictions:
+                self.predictions, self.visible_area = ph.filter_global_predictions(self.scenario, global_predictions,
+                                                                                   self.vehicle_history[-1],
+                                                                                   time_step,
+                                                                                   self.config,
+                                                                                   occlusion_module=self.planner_interface.occlusion_module,
+                                                                                   ego_id=self.id,
+                                                                                   msg_logger=self.msg_logger)
+            else:
+                self.predictions, self.visible_area = None, None
         else:
             self.agent_state.log_collision(time_step)
 

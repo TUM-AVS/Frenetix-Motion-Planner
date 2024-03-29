@@ -3,16 +3,16 @@ evaluate_agents: False
 # create collision report in case of collisions
 collision_report: False
 # evaluate runtime of multi-agent simulation
-evaluate_runtime: True
+evaluate_runtime: False
 # evaluate multi-agent simulation results
-evaluate_simulation: True
+evaluate_simulation: False
 # radius to take vehicles into account
 radius: 100
 # threshold value for tet, tit
 tau: 2
 # max laterale deceleration
 a_max_lat: 8
-# available measures for evaluation (Use=True, Ignore=False)
+# available measures for evaluation (Use=True, Ignore=False, only if evaluate_simulation=True)
 criticality_metrics:
     # Headway
     hw: True

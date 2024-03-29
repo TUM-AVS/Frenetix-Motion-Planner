@@ -12,9 +12,6 @@ import subprocess
 import math
 import zipfile
 import numpy as np
-from typing import Tuple
-# third party
-from scipy.spatial.kdtree import KDTree
 import yaml
 import pickle
 from commonroad_dc.collision.trajectory_queries.trajectory_queries import trajectory_preprocess_obb_sum
@@ -310,48 +307,5 @@ def pi_range(yaw):
         return yaw
     return yaw
 
-
-def extend_reference_path_at_end(reference_path: np.ndarray, final_position: np.ndarray,
-                                 additional_lenght_in_meters: float = 5.0,
-                                 distance_threshold_in_meters: float = np.inf) -> Tuple[np.ndarray, bool]:
-    """
-    Adds additional points at the end along a line between first two points of reference path.
-    Returns new reference path and success indicator
-
-    Reasoning
-    ----------
-    Otherwise, an occuring edge-case would be that
-    the rear axel of the vehicle is after the last point of the ref path, which makes
-    Frenet-Localization problematic.
-
-    If the closest point to the final position is the last point of the reference path and their
-    distance is below a certain threshold (currently infinity), additional points are being placed
-
-    Credits to: Tobias Mascetta, TUM, Cyber-physical Systems Chair
-
-    """
-
-    # TODO: tmasc --> if there are now significant changes coming, use one class method for both start and end
-
-    # check if the closest point to the final position is last point
-    nn_distance, nn_idx = KDTree(reference_path).query(final_position)
-
-    if (nn_idx == reference_path.shape[0] - 1 and nn_distance < distance_threshold_in_meters):
-        # get distance between first two points to know what the pseudo-uniform sampling would be
-        point_0: np.ndarray = reference_path[-2, :]
-        point_1: np.ndarray = reference_path[-1, :]
-        distance: float = np.linalg.norm(point_1 - point_0)
-        num_new_points: int = math.ceil(additional_lenght_in_meters / distance)
-
-        delta_x: float = float(point_1[0] - point_0[0])
-        delta_y: float = float(point_1[1] - point_0[1])
-
-        for idx in range(1, num_new_points + 1):
-            new_point: np.ndarray = np.asarray([point_1[0] + idx * delta_x, point_1[1] + idx * delta_y])
-            reference_path: np.ndarray = np.vstack((reference_path, new_point))
-
-        return reference_path, True
-    else:
-        return reference_path, False
 
 # EOF

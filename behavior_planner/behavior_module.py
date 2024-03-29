@@ -39,9 +39,9 @@ class BehaviorModule(object):
         # load config
         self.BM_state.config = config
         self.behavior_config = self.BM_state.config.behavior
-        self.BM_state.config.behavior.behavior_log_path = os.path.join(log_path, "behavior_logs")
+        self.BM_state.config.behavior.behavior_log_path_scenario = os.path.join(log_path, "behavior_logs")
 
-        os.makedirs(self.behavior_config.behavior_log_path, exist_ok=True)
+        os.makedirs(self.behavior_config.behavior_log_path_scenario, exist_ok=True)
 
         # init behavior planner and load scenario information
         self.VP_state = self.BM_state.VP_state  # velocity planner information
@@ -127,7 +127,7 @@ class BehaviorModule(object):
 
         # execute velocity planner
         self.velocity_planner.execute()
-        self.desired_velocity = self.VP_state.goal_velocity
+        self.desired_velocity = self.VP_state.desired_velocity
 
         # execute FSM
         self.ego_FSM.execute()
@@ -174,7 +174,7 @@ class BehaviorModule(object):
 
     def _retrieve_nav_route(self):
         global_nav_routes = self.navigation.plan_routes()
-        self.BM_state.global_nav_route = global_nav_routes.retrieve_first_route()
+        self.BM_state.global_nav_route = global_nav_routes.retrieve_shortest_route()
 
     def _retrieve_lane_changes_from_navigation(self):
         self.BM_state.nav_lane_changes_left = 0

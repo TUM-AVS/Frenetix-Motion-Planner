@@ -100,8 +100,8 @@ class BehaviorLogger(object):
             ]
 
         # Define the path for the log file
-        self._message_log_file_path = os.path.join(self._behavior_config.behavior_log_path, "messages.log")
-        self._data_log_file_path = os.path.join(self._behavior_config.behavior_log_path, "data.csv")
+        self._message_log_file_path = os.path.join(self._behavior_config.behavior_log_path_scenario, "messages.log")
+        self._data_log_file_path = os.path.join(self._behavior_config.behavior_log_path_scenario, "data.csv")
 
         if behavior_config.archive_previous_logs:
             with (open(self._data_log_file_path, "r") as file):
@@ -109,18 +109,18 @@ class BehaviorLogger(object):
                     # header length of minimal logging >= header length of previous log
                     if len(self._column_headers) >= len(file.read().split("\n", 1)[0].split(";")):
                         self._data_archive_log_file_path = os.path.join(
-                            self._behavior_config.behavior_log_path, "data_previous_minimal.csv")
+                            self._behavior_config.behavior_log_path_scenario, "data_previous_minimal.csv")
                     else:
                         self._data_archive_log_file_path = os.path.join(
-                            self._behavior_config.behavior_log_path, "data_previous.csv")
+                            self._behavior_config.behavior_log_path_scenario, "data_previous.csv")
                 else:
                     # header length of normal logging > header length of previous log
                     if len(self._column_headers) > len(file.read().split("\n", 1)[0].split(";")):
                         self._data_archive_log_file_path = os.path.join(
-                            self._behavior_config.behavior_log_path, "data_previous_minimal.csv")
+                            self._behavior_config.behavior_log_path_scenario, "data_previous_minimal.csv")
                     else:
                         self._data_archive_log_file_path = os.path.join(
-                            self._behavior_config.behavior_log_path, "data_previous.csv")
+                            self._behavior_config.behavior_log_path_scenario, "data_previous.csv")
         else:
             self._data_archive_log_file_path = ""
             self._data_archive_log_file_path = ""

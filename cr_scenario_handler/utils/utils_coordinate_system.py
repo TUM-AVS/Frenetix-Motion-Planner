@@ -18,6 +18,46 @@ from commonroad_dc.geometry.util import compute_pathlength_from_polyline, comput
 from commonroad.common.util import make_valid_orientation
 
 
+def extend_path_linearly(points, extension_length=50, at_start=True):
+    """Extend the list of points linearly at the start or end by a given length."""
+    if at_start:
+        p1, p2 = points[0], points[1]
+    else:
+        p1, p2 = points[-2], points[-1]
+
+    delta_x = p2[0] - p1[0]
+    delta_y = p2[1] - p1[1]
+
+    dist = np.sqrt(delta_x ** 2 + delta_y ** 2)
+    if dist == 0:
+        return points  # Avoid division by zero if p1 and p2 are the same
+
+    step_x = delta_x / dist
+    step_y = delta_y / dist
+
+    num_new_points = int(extension_length / dist)
+    new_points = []
+    for i in range(1, num_new_points + 1):
+        if at_start:
+            new_point = (p1[0] - i * step_x * dist, p1[1] - i * step_y * dist)
+            new_points.append(new_point)
+        else:
+            new_point = (p2[0] + i * step_x * dist, p2[1] + i * step_y * dist)
+            new_points.append(new_point)
+
+    if at_start:
+        return np.vstack((new_points[::-1], points))
+    else:
+        return np.vstack((points, new_points))
+
+
+def extend_ref_path_both_ends(ref_path, extension_length=30):
+    """Extend the reference path on both ends by a default length."""
+    extended_start = extend_path_linearly(ref_path, extension_length, at_start=True)
+    extended_both_ends = extend_path_linearly(extended_start, extension_length, at_start=False)
+    return extended_both_ends
+
+
 def extend_points(points):
     """Extend the list of points with additional points in the orientation of the line between the two first points."""
     p1, p2 = points[0], points[1]
@@ -34,6 +74,28 @@ def extend_points(points):
 
     # Stack new_points and points and convert them to a numpy array
     return np.vstack((new_points[::-1], points))
+
+
+def extend_points_end(points, extension_length=30):
+    """Extend the list of points at the end by a default length."""
+    p1, p2 = points[-2], points[-1]  # Use the last two points
+    delta_x = p2[0] - p1[0]
+    delta_y = p2[1] - p1[1]
+
+    # Assuming hf.distance() calculates the Euclidean distance between two points
+    dist = hf.distance(p1, p2)
+    if dist == 0:
+        return points  # Avoid division by zero if p1 and p2 are the same
+
+    num_new_points = int(extension_length / dist)
+
+    new_points = []
+    for i in range(1, num_new_points + 1):
+        new_point = (p2[0] + i * delta_x, p2[1] + i * delta_y)
+        new_points.append(new_point)
+
+    # Append new_points to points and convert them to a numpy array
+    return np.vstack((points, new_points))
 
 
 def extend_ref_path(ref_path, init_pos):
