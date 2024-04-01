@@ -6,5 +6,5 @@ calc_visible_area: False
 sensor_radius: 80
 
 # Cone Angle and Safety Dist for Cone Angle
-cone_angle: 20
+cone_angle: 0
 cone_safety_dist: 5

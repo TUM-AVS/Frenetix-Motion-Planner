@@ -450,9 +450,9 @@ class DataLoggingCosts:
 
             # # log frenet coordinates (distance to reference path)
             new_line += ";" + \
-                json.dumps(str(trajectory.curvilinear.s[[replanning_counter]]), default=default)
+                json.dumps(str(trajectory.curvilinear.s[replanning_counter]), default=default)
             new_line += ";" + \
-                json.dumps(str(trajectory.curvilinear.d[[replanning_counter]]), default=default)
+                json.dumps(str(trajectory.curvilinear.d[replanning_counter]), default=default)
 
             # log risk values number
             if trajectory._ego_risk is not None and trajectory._obst_risk is not None:

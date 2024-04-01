@@ -32,35 +32,32 @@ def ignore_vehicles_in_cone_angle(time_step, obstacles, scenario, ego_pose, veh_
 
     return bool: True if vehicle is ignored, i.e. inside cone
     """
-    ego_pose = np.array(
-        [ego_pose.initial_state.position[0], ego_pose.initial_state.position[1], ego_pose.initial_state.orientation])
-    cone_angle = cone_angle / 180 * np.pi
-    ignore_pred_list = list()
+    ego_position = np.array([ego_pose.initial_state.position[0], ego_pose.initial_state.position[1]])
+    ego_orientation = ego_pose.initial_state.orientation
+    cone_angle_rad = cone_angle / 180 * np.pi
+    ignore_pred_list = []
 
     for i in obstacles:
-        ignore_object = True
-        obj_pose = scenario.obstacle_by_id(i).occupancy_at_time(time_step).shape.center
-        obj_orientation = scenario.obstacle_by_id(i).occupancy_at_time(time_step).shape.orientation
+        obstacle = scenario.obstacle_by_id(i)
+        obj_position = obstacle.occupancy_at_time(time_step).shape.center[:2]
+        obj_orientation = obstacle.occupancy_at_time(time_step).shape.orientation
 
-        loc_obj_pos = hf.rotate_glob_loc(
-            obj_pose[:2] - ego_pose[:2], obj_orientation, matrix=False
-        )
-        loc_obj_pos[0] += veh_length / 2.0
+        # Convert object position from global to ego vehicle's local coordinate system
+        loc_obj_pos = hf.rotate_glob_loc(obj_position - ego_position, -ego_orientation, matrix=False)
+        loc_obj_pos[0] -= veh_length / 2.0  # Adjust for vehicle length to consider rear axle as origin
 
-        if loc_obj_pos[0] > -cone_safety_dist:
-            ignore_object = False
+        # Check if the object is behind the ego vehicle within the safety distance
+        if loc_obj_pos[0] < -cone_safety_dist:
+            # Calculate the angle of the object relative to the ego vehicle's orientation
+            obj_angle = math.atan2(loc_obj_pos[1], loc_obj_pos[0])
 
-        obj_angle = hf.pi_range(math.atan2(loc_obj_pos[1], loc_obj_pos[0]) - np.pi)
+            # Check if the object is within the cone angle
+            if abs(obj_angle) < cone_angle_rad / 2.0:
+                ignore_pred_list.append(i)
 
-        if abs(obj_angle) > cone_angle / 2.0:
-            ignore_object = False
-        if ignore_object:
-            ignore_pred_list.append(i)
-
-    if len(ignore_pred_list) > 0:
-        # for obj in range(len(ignore_pred_list)):
-        for obj in ignore_pred_list:
-            obstacles.remove(obj)
+    # Remove ignored obstacles from the list
+    for obj in ignore_pred_list:
+        obstacles.remove(obj)
 
     return obstacles
 
