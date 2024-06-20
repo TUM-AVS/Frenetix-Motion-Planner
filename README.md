@@ -4,13 +4,43 @@
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/) [![Python 3.9](https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/release/python-390/)
 
 
-# Frenetix Motion Planner & Multi-agent Scenario Handler
+# FFRENETIX Motion Planner & Multi-agent Scenario Handler
+
+Welcome to the TUM FRENETIX Motion Planner. Here you find the modules, the code and the information to run our high performance motion planning algorithm for autonomous driving tasks.
+
+![FRENETIX](doc/gifs/FRENETIX.gif)
+
+
+<details>
+<summary> <h2> 📖 Overview Modules </h2> </summary>
+
 
 This repository includes a Frenet trajectory planning algorithm and a Multi-agent Simulation Framework in the [CommonRoad](https://commonroad.in.tum.de/) scenario format.
 The trajectories are generated according to the sampling-based approach in [1-5] including two different implementations.
 The Repo provides a python-based and a C++-accelerated Motion Planner [Frenetix](https://github.com/TUM-AVS/Frenetix/) implementation.
 The multi-agent simulation can be used to integrate and test different planning algorithms.
 
+![Modules](doc/images/modules.png)
+
+Detailed documentation of the functionality behind the single modules can be found below.
+
+1. [General Planning Algorithm](README.md)
+
+2. [Frenetix C++ Trajectory Handler](https://github.com/TUM-AVS/Frenetix)
+
+3. [Commonroad Scenario Handler](cr_scenario_handler/README.md)
+
+4. [Behavior Planner](behavior_planner/README.md)
+
+5. [Occlusion-aware Module](https://github.com/TUM-AVS/Frenetix-Occlusion)
+
+6. [Wale-Net](https://github.com/TUMFTM/Wale-Net)
+
+7. [Risk-Assessment](https://github.com/TUMFTM/EthicalTrajectoryPlanning)
+
+8. [Reinforcement Learning Module Extension](https://github.com/TUM-AVS/Frenetix-RL)
+
+</details>
 
 
 <details>
@@ -23,13 +53,13 @@ For the development IDE we suggest [PyCharm](http://www.jetbrains.com/pycharm/)
 
 ### Pre-installation Steps
 1. Make sure that the following **dependencies** are installed on your system for the C++ implementation:
-   * [Eigen3](https://eigen.tuxfamily.org/dox/) 
+   * [Eigen3](https://eigen.tuxfamily.org/dox/)
      * On Ubuntu: `sudo apt-get install libeigen3-dev`
    * [Boost](https://www.boost.org/)
      * On Ubuntu: `sudo apt-get install libboost-all-dev`
-   * [OpenMP](https://www.openmp.org/) 
+   * [OpenMP](https://www.openmp.org/)
      * On Ubuntu: `sudo apt-get install libomp-dev`
-   * [python3.11-full](https://packages.ubuntu.com/jammy/python3.11-full) 
+   * [python3.11-full](https://packages.ubuntu.com/jammy/python3.11-full)
         * On Ubuntu: `sudo apt-get install python3.11-full` and `sudo apt-get install python3.11-dev`
 
 2. **Clone** this repository & create a new virtual environment `python3.11 -m venv venv`
@@ -48,7 +78,7 @@ For the development IDE we suggest [PyCharm](http://www.jetbrains.com/pycharm/)
 
 1. Do the **Requirements & Pre-installation Steps**
 
-2. **Change** Configurations in _configurations/_ if needed. 
+2. **Change** Configurations in _configurations/_ if needed.
 
 3. **Change** Settings in **main.py** if needed. Note that not all configuration combinations may work. The following options are available:
    1. **use_cpp**: If _True_: The C++ Frenet Implementations will be used.
@@ -64,23 +94,23 @@ For the development IDE we suggest [PyCharm](http://www.jetbrains.com/pycharm/)
 <details>
 <summary> <h2> 🚗🛣️🚙 Multi-agent Simulation Framework </h2> </summary>
 
-#### Run Multi-agent Simulation 
+#### Run Multi-agent Simulation
 1. Do the **Requirements & Pre-installation Steps**
 2.  **Change** Configurations in _configurations/_ if needed. \
     By **default**, a multi-agent simulation is started with **all agents**. \
-    The multi-agent simulation settings can be adjusted in _configurations/simulation/simulation_. 
+    The multi-agent simulation settings can be adjusted in _configurations/simulation/simulation_.
 3.  **Change** Settings in **main_multiagent.py** if needed
     1. Set the scenario name you want to use.
     3. **evaluation_pipeline**: If _True_: Start an evaluation pipeline with all scenarios
 4. **Run** the simulation with `python3 main_multiagent.py`
 5. **Logs** and **Plots** can be found in _/logs/<scenario_name>_
 
-    
-#### Integration of external Trajectory Planner 
+
+#### Integration of external Trajectory Planner
 1. A **base class** with all attributes necessary for the simulation is provided in  _cr_scenario_handler/planner_interface_
 2. Create a new file with an interface to fit your planner and save it in _cr_scenario_handler/planner_interface_\
     The new **interface** must be a **subclass** of _PlannerInterface_.
-3. In _configurations/simulation/simulation_ adjust **used_planner_interface** with the **class-name** of your interface 
+3. In _configurations/simulation/simulation_ adjust **used_planner_interface** with the **class-name** of your interface
 
 
 </details>
@@ -115,28 +145,6 @@ Additional scenarios can be found [here](https://commonroad.in.tum.de/scenarios)
 
 </details>
 
-<details>
-<summary> <h2> 🔧 Modules </h2> </summary>
-
-Detailed documentation of the functionality behind the single modules can be found below.
-
-1. [General Planning Algorithm](README.md)
-
-2. [Frenetix C++ Trajectory Handler](https://github.com/TUM-AVS/Frenetix)
-
-3. [Commonroad Scenario Handler](cr_scenario_handler/README.md)
-
-4. [Behavior Planner](behavior_planner/README.md)
-
-5. [Occlusion-aware Module](https://github.com/TUM-AVS/Frenetix-Occlusion)
-
-6. [Wale-Net](https://github.com/TUMFTM/Wale-Net)
-
-7. [Risk-Assessment](https://github.com/TUMFTM/EthicalTrajectoryPlanning)
-
-8. [Reinforcement Learning Module Extension](https://github.com/TUM-AVS/Frenetix-RL)
-
-</details>
 
 <details>
 <summary> <h2> 📇 Contact Info </h2> </summary>
@@ -166,13 +174,13 @@ Germany
 
 <details>
 <summary> <h2> 📃 Citation </h2> </summary>
-   
+
 If you use this repository for any academic work, please cite our code:
 - [Analytical Planner Paper](https://arxiv.org/abs/2402.01443)
 
 ```bibtex
 @misc{frenetix2024,
-      title={Frenetix Motion Planner: High-Performance and Modular Trajectory Planning Algorithm for Complex Autonomous Driving Scenarios}, 
+      title={Frenetix Motion Planner: High-Performance and Modular Trajectory Planning Algorithm for Complex Autonomous Driving Scenarios},
       author={Korbinian Moller and Rainer Trauth and Gerald Wuersching and Johannes Betz},
       year={2024},
       eprint={2402.01443},
@@ -183,7 +191,7 @@ If you use this repository for any academic work, please cite our code:
 - [Multi-agent Simulation Framework](https://arxiv.org/abs/2402.04720)
 ```bibtex
 @misc{multiagent2024,
-      title={Investigating Driving Interactions: A Robust Multi-Agent Simulation Framework for Autonomous Vehicles}, 
+      title={Investigating Driving Interactions: A Robust Multi-Agent Simulation Framework for Autonomous Vehicles},
       author={Marc Kaufeld and Rainer Trauth and Johannes Betz},
       year={2024},
       eprint={2402.04720},
