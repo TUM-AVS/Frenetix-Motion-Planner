@@ -14,31 +14,30 @@ Welcome to the TUM FRENETIX Motion Planner. Here you find the modules, the code 
 <details>
 <summary> <h2> 📖 Overview Modules </h2> </summary>
 
-
 This repository includes a Frenet trajectory planning algorithm and a Multi-agent Simulation Framework in the [CommonRoad](https://commonroad.in.tum.de/) scenario format.
 The trajectories are generated according to the sampling-based approach in [1-5] including two different implementations.
 The Repo provides a python-based and a C++-accelerated Motion Planner [Frenetix](https://github.com/TUM-AVS/Frenetix/) implementation.
-The multi-agent simulation can be used to integrate and test different planning algorithms.
+The multi-agent simulation can be used to integrate and test different planning algorithms. FRENETIX is an modular and adaptive motion planning environment that allows researchers to add and exchange the following modules:
 
 ![Modules](doc/images/modules.png)
 
 Detailed documentation of the functionality behind the single modules can be found below.
 
-1. [General Planning Algorithm](README.md)
+1. [General Motion Planning Algorithm](README.md)
 
 2. [Frenetix C++ Trajectory Handler](https://github.com/TUM-AVS/Frenetix)
 
 3. [Commonroad Scenario Handler](cr_scenario_handler/README.md)
 
-4. [Behavior Planner](behavior_planner/README.md)
+4. [Module M2: Behavior Planner](behavior_planner/README.md)
 
-5. [Occlusion-aware Module](https://github.com/TUM-AVS/Frenetix-Occlusion)
+5. [Module M3: Occlusion-aware Module](https://github.com/TUM-AVS/Frenetix-Occlusion)
 
-6. [Wale-Net](https://github.com/TUMFTM/Wale-Net)
+6. [Module M4: Trajectory Prediction: Wale-Net](https://github.com/TUMFTM/Wale-Net)
 
-7. [Risk-Assessment](https://github.com/TUMFTM/EthicalTrajectoryPlanning)
+7. [Module M5: Risk-Assessment](https://github.com/TUMFTM/EthicalTrajectoryPlanning)
 
-8. [Reinforcement Learning Module Extension](https://github.com/TUM-AVS/Frenetix-RL)
+8. [Module M6: Reinforcement Learning Module Extension](https://github.com/TUM-AVS/Frenetix-RL)
 
 </details>
 
@@ -175,6 +174,7 @@ Germany
 <details>
 <summary> <h2> 📃 Citation </h2> </summary>
 
+The whole FRENETIX setup is further explained in [this video](https://youtu.be/qolOb8YWvT0?si=mq0lb31lwqxdwTNq)
 If you use this repository for any academic work, please cite our code:
 - [Analytical Planner Paper](https://arxiv.org/abs/2402.01443)
 
@@ -198,6 +198,19 @@ If you use this repository for any academic work, please cite our code:
       archivePrefix={arXiv},
       primaryClass={cs.RO}
 }
+```
+- [Occlusion-aware Planning](https://ieeexplore.ieee.org/abstract/document/10328654)
+```bibtex
+@ARTICLE{FRENETIX_Occlusion,
+  author={Trauth, Rainer and Moller, Korbinian and Betz, Johannes},
+  journal={IEEE Open Journal of Intelligent Transportation Systems},
+  title={Toward Safer Autonomous Vehicles: Occlusion-Aware Trajectory Planning to Minimize Risky Behavior},
+  year={2023},
+  volume={4},
+  number={},
+  pages={929-942},
+  keywords={Autonomous vehicles;Trajectory planning;Pedestrians;Vehicle dynamics;Behavioral sciences;Roads;Collision avoidance;Autonomous vehicles;collision avoidance;trajectory planning;vehicle safety},
+  doi={10.1109/OJITS.2023.3336464}}
 ```
 
 </details>
