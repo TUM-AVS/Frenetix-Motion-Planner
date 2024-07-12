@@ -1,4 +1,4 @@
-__author__ = "Luca Troncone, Rainer Trauth"
+__author__ = "Moritz Ellermann, Rainer Trauth"
 __copyright__ = "TUM Institute of Automotive Technology"
 __version__ = "1.0"
 __maintainer__ = "Rainer Trauth"
@@ -42,10 +42,6 @@ class EgoFSM(object):
     Situation: 'IdentifyTargetLaneAndVehiclesOnTargetLane', 'IdentifyFreeSpaceOnTargetLaneForLaneChange', 'PreparationsDone',
                 'InitiateLaneChange', 'EgoVehicleBetweenTwoLanes', 'BehaviorStateComplete',
                 'EstimateMergingLaneLengthAndEmergencyStopPoint', 'InitiateLaneMerge, 'InitiateRoadExit'
-
-    TODO: Complete set of possible states
-    TODO: Create logic modules for each Simple FSM
-
     """
     def __init__(self, BM_state):
         self.BM_state = BM_state
@@ -76,7 +72,9 @@ class EgoFSM(object):
         self.FSM_street_setting.execute()
 
 
-'''FSM Base Class'''
+####################################################################################################
+#                                          FSM Base Class                                          #
+####################################################################################################
 
 
 class SimpleFSM(object):
@@ -105,7 +103,9 @@ class SimpleFSM(object):
         self.cur_state.reset_state()
 
 
-'''Street Setting States: '''
+####################################################################################################
+#                                      Street Setting States                                       #
+####################################################################################################
 
 
 class Country(State):
@@ -113,29 +113,33 @@ class Country(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_country_static = SimpleFSM(
+        self.FSM_static = SimpleFSM(
             possible_states={
                 'StaticDefault': StaticDefault(),
                 'PrepareIntersection': PrepareIntersection(),
                 'PrepareTurnLeft': PrepareTurnLeft(BM_state=BM_state),
                 'PrepareTurnRight': PrepareTurnRight(BM_state=BM_state),
+                'PrepareLaneMerge': PrepareLaneMerge(BM_state=BM_state),
                 'PrepareTrafficLight': PrepareTrafficLight(BM_state=BM_state),
                 'Intersection': Intersection(),
                 'TurnLeft': TurnLeft(BM_state=BM_state),
                 'TurnRight': TurnRight(BM_state=BM_state),
+                'LaneMerge': LaneMerge(BM_state=BM_state),
                 'TrafficLight': TrafficLight(BM_state=BM_state)},
             possible_transitions={
                 'toStaticDefault': Transition('StaticDefault'),
                 'toPrepareIntersection': Transition('PrepareIntersection'),
                 'toPrepareTurnLeft': Transition('PrepareTurnLeft'),
                 'toPrepareTurnRight': Transition('PrepareTurnRight'),
+                'toPrepareLaneMerge': Transition('PrepareLaneMerge'),
                 'toPrepareTrafficLight': Transition('PrepareTrafficLight'),
                 'toIntersection': Transition('Intersection'),
                 'toTurnLeft': Transition('TurnLeft'),
                 'toTurnRight': Transition('TurnRight'),
+                'toLaneMerge': Transition('LaneMerge'),
                 'toTrafficLight': Transition('TrafficLight')},
             default_state='StaticDefault')
-        self.FSM_country_dynamic = SimpleFSM(
+        self.FSM_dynamic = SimpleFSM(
             possible_states={
                 'DynamicDefault': DynamicDefault(),
                 'NoLaneChanges': NoLaneChanges(),
@@ -157,16 +161,17 @@ class Country(State):
     def execute(self):
         bhv_logger.debug("FSM Street Setting: Country")
         # FSM static
-        transition_static, self.cur_state_static = self.logic_static.execute(self.cur_state_static)
-        if transition_static is not None:
-            self.FSM_country_static.transition(transition_static)
-            self.FSM_country_static.reset_current_state()
-        self.FSM_state.behavior_state_static = self.cur_state_static
+        if not self.BM_state.plan_dynamics_only:
+            transition_static, self.cur_state_static = self.logic_static.execute(self.cur_state_static)
+            if transition_static is not None:
+                self.FSM_static.transition(transition_static)
+                self.FSM_static.reset_current_state()
+            self.FSM_state.behavior_state_static = self.cur_state_static
         # FSM dynamic
         transition_dynamic, self.cur_state_dynamic = self.logic_dynamic.execute(self.cur_state_dynamic)
         if transition_dynamic is not None:
-            self.FSM_country_dynamic.transition(transition_dynamic)
-            self.FSM_country_dynamic.reset_current_state()
+            self.FSM_dynamic.transition(transition_dynamic)
+            self.FSM_dynamic.reset_current_state()
         self.FSM_state.behavior_state_dynamic = self.cur_state_dynamic
 
         # actions
@@ -174,18 +179,20 @@ class Country(State):
             self.FSM_state.no_auto_lane_change = True
         else:
             self.FSM_state.no_auto_lane_change = False
-        self.FSM_country_static.execute()
-        self.FSM_country_dynamic.execute()
+
+        if not self.BM_state.plan_dynamics_only:
+            self.FSM_static.execute()
+        self.FSM_dynamic.execute()
 
     def reset_state(self):
         self.cur_state_static = 'StaticDefault'
         self.logic_static.reset_state(state='StaticDefault')
-        self.FSM_country_static.cur_state = self.FSM_country_static.states['StaticDefault']
+        self.FSM_static.cur_state = self.FSM_static.states['StaticDefault']
         self.FSM_state.behavior_state_static = 'StaticDefault'
 
         self.cur_state_dynamic = 'DynamicDefault'
         self.logic_dynamic.reset_state(state='DynamicDefault')
-        self.FSM_country_dynamic.cur_state = self.FSM_country_dynamic.states['DynamicDefault']
+        self.FSM_dynamic.cur_state = self.FSM_dynamic.states['DynamicDefault']
         self.FSM_state.behavior_state_dynamic = 'DynamicDefault'
 
 
@@ -194,12 +201,13 @@ class Urban(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_urban_static = SimpleFSM(
+        self.FSM_static = SimpleFSM(
             possible_states={
                 'StaticDefault': StaticDefault(),
                 'PrepareIntersection': PrepareIntersection(),
                 'PrepareTurnLeft': PrepareTurnLeft(BM_state=BM_state),
                 'PrepareTurnRight': PrepareTurnRight(BM_state=BM_state),
+                'PrepareLaneMerge': PrepareLaneMerge(BM_state=BM_state),
                 'PrepareTrafficLight': PrepareTrafficLight(BM_state=BM_state),
                 'PrepareCrosswalk': PrepareCrosswalk(BM_state=BM_state),
                 'PrepareStopSign': PrepareStopSign(BM_state=BM_state),
@@ -207,6 +215,7 @@ class Urban(State):
                 'Intersection': Intersection(),
                 'TurnLeft': TurnLeft(BM_state=BM_state),
                 'TurnRight': TurnRight(BM_state=BM_state),
+                'LaneMerge': LaneMerge(BM_state=BM_state),
                 'TrafficLight': TrafficLight(BM_state=BM_state),
                 'Crosswalk': Crosswalk(BM_state=BM_state),
                 'StopSign': StopSign(BM_state=BM_state),
@@ -217,6 +226,7 @@ class Urban(State):
                 'toPrepareIntersection': Transition('PrepareIntersection'),
                 'toPrepareTurnLeft': Transition('PrepareTurnLeft'),
                 'toPrepareTurnRight': Transition('PrepareTurnRight'),
+                'toPrepareLaneMerge': Transition('PrepareLaneMerge'),
                 'toPrepareTrafficLight': Transition('PrepareTrafficLight'),
                 'toPrepareCrosswalk': Transition('PrepareCrosswalk'),
                 'toPrepareStopSign': Transition('PrepareStopSign'),
@@ -224,12 +234,13 @@ class Urban(State):
                 'toIntersection': Transition('Intersection'),
                 'toTurnLeft': Transition('TurnLeft'),
                 'toTurnRight': Transition('TurnRight'),
+                'toLaneMerge': Transition('LaneMerge'),
                 'toTrafficLight': Transition('TrafficLight'),
                 'toCrosswalk': Transition('Crosswalk'),
                 'toStopSign': Transition('StopSign'),
                 'toYieldSign': Transition('YieldSign')},
             default_state='StaticDefault')
-        self.FSM_urban_dynamic = SimpleFSM(
+        self.FSM_dynamic = SimpleFSM(
             possible_states={
                 'DynamicDefault': DynamicDefault(),
                 'NoLaneChanges': NoLaneChanges(),
@@ -262,17 +273,18 @@ class Urban(State):
     def execute(self):
         bhv_logger.debug("FSM Street Setting: Urban")
         # FSM static
-        transition_static, self.cur_state_static = self.logic_static.execute(self.cur_state_static)
-        if transition_static is not None:
-            self.FSM_urban_static.transition(transition_static)
-            self.FSM_urban_static.reset_current_state()
-        self.FSM_state.behavior_state_static = self.cur_state_static
+        if not self.BM_state.plan_dynamics_only:
+            transition_static, self.cur_state_static = self.logic_static.execute(self.cur_state_static)
+            if transition_static is not None:
+                self.FSM_static.transition(transition_static)
+                self.FSM_static.reset_current_state()
+            self.FSM_state.behavior_state_static = self.cur_state_static
 
         # FSM dynamic
         transition_dynamic, self.cur_state_dynamic = self.logic_dynamic.execute(self.cur_state_dynamic)
         if transition_dynamic is not None:
-            self.FSM_urban_dynamic.transition(transition_dynamic)
-            self.FSM_urban_dynamic.reset_current_state()
+            self.FSM_dynamic.transition(transition_dynamic)
+            self.FSM_dynamic.reset_current_state()
         self.FSM_state.behavior_state_dynamic = self.cur_state_dynamic
 
         # actions
@@ -281,18 +293,19 @@ class Urban(State):
         else:
             self.FSM_state.no_auto_lane_change = False
 
-        self.FSM_urban_static.execute()
-        self.FSM_urban_dynamic.execute()
+        if not self.BM_state.plan_dynamics_only:
+            self.FSM_static.execute()
+        self.FSM_dynamic.execute()
 
     def reset_state(self):
         self.cur_state_static = 'StaticDefault'
         self.logic_static.reset_state(state='StaticDefault')
-        self.FSM_urban_static.cur_state = self.FSM_urban_static.states['StaticDefault']
+        self.FSM_static.cur_state = self.FSM_static.states['StaticDefault']
         self.FSM_state.behavior_state_static = 'StaticDefault'
 
         self.cur_state_dynamic = 'DynamicDefault'
         self.logic_dynamic.reset_state(state='DynamicDefault')
-        self.FSM_urban_dynamic.cur_state = self.FSM_urban_dynamic.states['DynamicDefault']
+        self.FSM_dynamic.cur_state = self.FSM_dynamic.states['DynamicDefault']
         self.FSM_state.behavior_state_dynamic = 'DynamicDefault'
 
 
@@ -301,7 +314,7 @@ class Highway(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_highway_static = SimpleFSM(
+        self.FSM_static = SimpleFSM(
             possible_states={
                 'StaticDefault': StaticDefault(),
                 'PrepareLaneMerge': PrepareLaneMerge(BM_state=BM_state),
@@ -315,7 +328,7 @@ class Highway(State):
                 'toLaneMerge': Transition('LaneMerge'),
                 'toRoadExit': Transition('RoadExit')},
             default_state='StaticDefault')
-        self.FSM_highway_dynamic = SimpleFSM(
+        self.FSM_dynamic = SimpleFSM(
             possible_states={
                 'DynamicDefault': DynamicDefault(),
                 'NoLaneChanges': NoLaneChanges(),
@@ -346,16 +359,17 @@ class Highway(State):
     def execute(self):
         bhv_logger.debug("FSM Street Setting: Highway")
         # FSM static
-        transition_static, self.cur_state_static = self.logic_static.execute(self.cur_state_static)
-        if transition_static is not None:
-            self.FSM_highway_static.transition(transition_static)
-            self.FSM_highway_static.reset_current_state()
-        self.FSM_state.behavior_state_static = self.cur_state_static
+        if not self.BM_state.plan_dynamics_only:
+            transition_static, self.cur_state_static = self.logic_static.execute(self.cur_state_static)
+            if transition_static is not None:
+                self.FSM_static.transition(transition_static)
+                self.FSM_static.reset_current_state()
+            self.FSM_state.behavior_state_static = self.cur_state_static
         # FSM dynamic
         transition_dynamic, self.cur_state_dynamic = self.logic_dynamic.execute(self.cur_state_dynamic)
         if transition_dynamic is not None:
-            self.FSM_highway_dynamic.transition(transition_dynamic)
-            self.FSM_highway_dynamic.reset_current_state()
+            self.FSM_dynamic.transition(transition_dynamic)
+            self.FSM_dynamic.reset_current_state()
         self.FSM_state.behavior_state_dynamic = self.cur_state_dynamic
 
         # actions
@@ -363,18 +377,20 @@ class Highway(State):
             self.FSM_state.no_auto_lane_change = True
         else:
             self.FSM_state.no_auto_lane_change = False
-        self.FSM_highway_static.execute()
-        self.FSM_highway_dynamic.execute()
+
+        if not self.BM_state.plan_dynamics_only:
+            self.FSM_static.execute()
+        self.FSM_dynamic.execute()
 
     def reset_state(self):
         self.cur_state_static = 'StaticDefault'
         self.logic_static.reset_state(state='StaticDefault')
-        self.FSM_highway_static.cur_state = self.FSM_highway_static.states['StaticDefault']
+        self.FSM_static.cur_state = self.FSM_static.states['StaticDefault']
         self.FSM_state.behavior_state_static = 'StaticDefault'
 
         self.cur_state_dynamic = 'DynamicDefault'
         self.logic_dynamic.reset_state(state='DynamicDefault')
-        self.FSM_highway_dynamic.cur_state = self.FSM_highway_dynamic.states['DynamicDefault']
+        self.FSM_dynamic.cur_state = self.FSM_dynamic.states['DynamicDefault']
         self.FSM_state.behavior_state_dynamic = 'DynamicDefault'
 
 
@@ -405,14 +421,16 @@ class DynamicDefault(State):
         return 0
 
 
-'''behavior states'''
+####################################################################################################
+#                                         Behavior States                                          #
+####################################################################################################
 
 
 class PrepareLaneChangeLeft(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_prepare_lane_change_left = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'IdentifyTargetLaneAndVehiclesOnTargetLane': IdentifyTargetLaneAndVehiclesOnTargetLane(BM_state),
                 'IdentifyFreeSpaceOnTargetLaneForLaneChange': IdentifyFreeSpaceOnTargetLaneForLaneChange(BM_state),
@@ -432,20 +450,20 @@ class PrepareLaneChangeLeft(State):
         # FSM
         transition, self.cur_state = self.logic.execute(self.cur_state)
         if transition is not None:
-            self.FSM_prepare_lane_change_left.transition(transition)
+            self.FSM_situation.transition(transition)
         self.FSM_state.situation_state_dynamic = self.cur_state
 
         # actions
         # velocity planner actions
-        self.FSM_prepare_lane_change_left.execute()
+        self.FSM_situation.execute()
         self.FSM_state.situation_time_step_counter += 1
 
     def reset_state(self):
         self.cur_state = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
         self.logic.reset_state(state='IdentifyTargetLaneAndVehiclesOnTargetLane')
-        self.FSM_prepare_lane_change_left.cur_state = self.FSM_prepare_lane_change_left.states[
+        self.FSM_situation.cur_state = self.FSM_situation.states[
             'IdentifyTargetLaneAndVehiclesOnTargetLane']
-        self.FSM_state.situation_state_dynamic = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
+        self.FSM_state.situation_state_dynamic = None
         self.FSM_state.situation_time_step_counter = 0
 
 
@@ -453,7 +471,7 @@ class LaneChangeLeft(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_lane_change_left = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'InitiateLaneChange': InitiateLaneChange(),
                 'EgoVehicleBetweenTwoLanes': EgoVehicleBetweenTwoLanes(),
@@ -472,7 +490,7 @@ class LaneChangeLeft(State):
         # FSM
         transition, self.cur_state = self.logic.execute(self.cur_state)
         if transition is not None:
-            self.FSM_lane_change_left.transition(transition)
+            self.FSM_situation.transition(transition)
         self.FSM_state.situation_state_dynamic = self.cur_state
 
         # actions
@@ -481,14 +499,14 @@ class LaneChangeLeft(State):
                                   center=self.BM_state.ego_state.position,
                                   orientation=self.BM_state.ego_state.orientation)
         self.FSM_state.detected_lanelets = self.BM_state.scenario.lanelet_network.find_lanelet_by_shape(vehicle_shape)
-        self.FSM_lane_change_left.execute()
+        self.FSM_situation.execute()
         self.FSM_state.situation_time_step_counter += 1
 
     def reset_state(self):
         self.cur_state = 'InitiateLaneChange'
         self.logic.reset_state(state='InitiateLaneChange')
-        self.FSM_lane_change_left.cur_state = self.FSM_lane_change_left.states['InitiateLaneChange']
-        self.FSM_state.situation_state_dynamic = 'InitiateLaneChange'
+        self.FSM_situation.cur_state = self.FSM_situation.states['InitiateLaneChange']
+        self.FSM_state.situation_state_dynamic = None
         self.FSM_state.detected_lanelets = None
         self.FSM_state.situation_time_step_counter = 0
 
@@ -497,7 +515,7 @@ class PrepareLaneChangeRight(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_prepare_lane_change_right = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'IdentifyTargetLaneAndVehiclesOnTargetLane': IdentifyTargetLaneAndVehiclesOnTargetLane(BM_state),
                 'IdentifyFreeSpaceOnTargetLaneForLaneChange': IdentifyFreeSpaceOnTargetLaneForLaneChange(BM_state),
@@ -517,19 +535,19 @@ class PrepareLaneChangeRight(State):
         # FSM
         transition, self.cur_state = self.logic.execute(self.cur_state)
         if transition is not None:
-            self.FSM_prepare_lane_change_right.transition(transition)
+            self.FSM_situation.transition(transition)
         self.FSM_state.situation_state_dynamic = self.cur_state
 
         # actions
-        self.FSM_prepare_lane_change_right.execute()
+        self.FSM_situation.execute()
         self.FSM_state.situation_time_step_counter += 1
 
     def reset_state(self):
         self.cur_state = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
         self.logic.reset_state(state='IdentifyTargetLaneAndVehiclesOnTargetLane')
-        self.FSM_prepare_lane_change_right.cur_state = self.FSM_prepare_lane_change_right.states[
+        self.FSM_situation.cur_state = self.FSM_situation.states[
             'IdentifyTargetLaneAndVehiclesOnTargetLane']
-        self.FSM_state.situation_state_dynamic = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
+        self.FSM_state.situation_state_dynamic = None
         self.FSM_state.situation_time_step_counter = 0
 
 
@@ -537,7 +555,7 @@ class LaneChangeRight(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_lane_change_right = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'InitiateLaneChange': InitiateLaneChange(),
                 'EgoVehicleBetweenTwoLanes': EgoVehicleBetweenTwoLanes(),
@@ -556,7 +574,7 @@ class LaneChangeRight(State):
         # FSM
         transition, self.cur_state = self.logic.execute(self.cur_state)
         if transition is not None:
-            self.FSM_lane_change_right.transition(transition)
+            self.FSM_situation.transition(transition)
         self.FSM_state.situation_state_dynamic = self.cur_state
 
         # actions
@@ -565,14 +583,14 @@ class LaneChangeRight(State):
                                   center=self.BM_state.ego_state.position,
                                   orientation=self.BM_state.ego_state.orientation)
         self.FSM_state.detected_lanelets = self.BM_state.scenario.lanelet_network.find_lanelet_by_shape(vehicle_shape)
-        self.FSM_lane_change_right.execute()
+        self.FSM_situation.execute()
         self.FSM_state.situation_time_step_counter += 1
 
     def reset_state(self):
         self.cur_state = 'InitiateLaneChange'
         self.logic.reset_state(state='InitiateLaneChange')
-        self.FSM_lane_change_right.cur_state = self.FSM_lane_change_right.states['InitiateLaneChange']
-        self.FSM_state.situation_state_dynamic = 'InitiateLaneChange'
+        self.FSM_situation.cur_state = self.FSM_situation.states['InitiateLaneChange']
+        self.FSM_state.situation_state_dynamic = None
         self.FSM_state.detected_lanelets = None
         self.FSM_state.situation_time_step_counter = 0
 
@@ -581,7 +599,7 @@ class PrepareLaneMerge(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_prepare_lane_merge = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'EstimateMergingLaneLengthAndEmergencyStopPoint': EstimateMergingLaneLengthAndEmergencyStopPoint(),
                 'IdentifyTargetLaneAndVehiclesOnTargetLane': IdentifyTargetLaneAndVehiclesOnTargetLane(BM_state),
@@ -601,25 +619,25 @@ class PrepareLaneMerge(State):
         bhv_logger.debug("FSM Dynamic Behavior State: Preparing for Lane Merge")
         transition, self.cur_state = self.logic.execute(self.cur_state)
         if transition is not None:
-            self.FSM_prepare_lane_merge.transition(transition)
+            self.FSM_situation.transition(transition)
         self.FSM_state.situation_state_static = self.cur_state
 
         # actions
-        self.FSM_prepare_lane_merge.execute()
+        self.FSM_situation.execute()
 
     def reset_state(self):
         self.cur_state = 'EstimateMergingLaneLengthAndEmergencyStopPoint'
         self.logic.reset_state(state='EstimateMergingLaneLengthAndEmergencyStopPoint')
-        self.FSM_prepare_lane_merge.cur_state = self.FSM_prepare_lane_merge.states[
+        self.FSM_situation.cur_state = self.FSM_situation.states[
             'EstimateMergingLaneLengthAndEmergencyStopPoint']
-        self.FSM_state.situation_state_static = 'EstimateMergingLaneLengthAndEmergencyStopPoint'
+        self.FSM_state.situation_state_static = None
 
 
 class LaneMerge(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_lane_merge = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'InitiateLaneMerge': InitiateLaneMerge(),
                 'EgoVehicleBetweenTwoLanes': EgoVehicleBetweenTwoLanes(),
@@ -637,24 +655,24 @@ class LaneMerge(State):
         # FSM
         transition, self.cur_state = self.logic.execute(self.cur_state)
         if transition is not None:
-            self.FSM_lane_merge.transition(transition)
+            self.FSM_situation.transition(transition)
         self.FSM_state.situation_state_static = self.cur_state
 
         # actions
-        self.FSM_lane_merge.execute()
+        self.FSM_situation.execute()
 
     def reset_state(self):
         self.cur_state = 'InitiateLaneMerge'
         self.logic.reset_state(state='InitiateLaneMerge')
-        self.FSM_lane_merge.cur_state = self.FSM_lane_merge.states['InitiateLaneMerge']
-        self.FSM_state.situation_state_static = 'InitiateLaneMerge'
+        self.FSM_situation.cur_state = self.FSM_situation.states['InitiateLaneMerge']
+        self.FSM_state.situation_state_static = None
 
 
 class PrepareRoadExit(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_prepare_road_exit = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'IdentifyTargetLaneAndVehiclesOnTargetLane': IdentifyTargetLaneAndVehiclesOnTargetLane(BM_state),
                 'IdentifyFreeSpaceOnTargetLaneForLaneMerge': IdentifyFreeSpaceOnTargetLaneForLaneMerge(BM_state),
@@ -672,25 +690,25 @@ class PrepareRoadExit(State):
         # FSM
         transition, self.cur_state = self.logic.execute(self.cur_state)
         if transition is not None:
-            self.FSM_prepare_road_exit.transition(transition)
+            self.FSM_situation.transition(transition)
         self.FSM_state.situation_state_static = self.cur_state
 
         # actions
-        self.FSM_prepare_road_exit.execute()
+        self.FSM_situation.execute()
 
     def reset_state(self):
         self.cur_state = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
         self.logic.reset_state(state='IdentifyTargetLaneAndVehiclesOnTargetLane')
-        self.FSM_prepare_road_exit.cur_state = self.FSM_prepare_road_exit.states[
+        self.FSM_situation.cur_state = self.FSM_situation.states[
             'IdentifyTargetLaneAndVehiclesOnTargetLane']
-        self.FSM_state.situation_state_static = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
+        self.FSM_state.situation_state_static = None
 
 
 class RoadExit(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_road_exit = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'InitiateRoadExit': InitiateRoadExit(),
                 'EgoVehicleBetweenTwoLanes': EgoVehicleBetweenTwoLanes(),
@@ -708,20 +726,21 @@ class RoadExit(State):
         # FSM
         transition, self.cur_state = self.logic.execute(self.cur_state)
         if transition is not None:
-            self.FSM_road_exit.transition(transition)
+            self.FSM_situation.transition(transition)
         self.FSM_state.situation_state_static = self.cur_state
 
         # actions
-        self.FSM_road_exit.execute()
+        self.FSM_situation.execute()
 
     def reset_state(self):
         self.cur_state = 'InitiateRoadExit'
         self.logic.reset_state(state='InitiateRoadExit')
-        self.FSM_road_exit.cur_state = self.FSM_road_exit.states['InitiateRoadExit']
-        self.FSM_state.situation_state_static = 'InitiateRoadExit'
+        self.FSM_situation.cur_state = self.FSM_situation.states['InitiateRoadExit']
+        self.FSM_state.situation_state_static = None
 
 
 class PrepareIntersection(State):
+    # TODO implement class PrepareIntersection
     def execute(self):
         bhv_logger.debug("FSM Behavior State: Preparing for Intersection")
         pass
@@ -731,6 +750,7 @@ class PrepareIntersection(State):
 
 
 class Intersection(State):
+    # TODO implement class Intersection
     def execute(self):
         bhv_logger.debug("FSM Behavior State: Intersection")
 
@@ -742,7 +762,7 @@ class PrepareTurnLeft(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_prepare_turn_left = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'IdentifyTargetLaneAndVehiclesOnTargetLane':
                     IdentifyTargetLaneAndVehiclesOnTargetLane(BM_state=self.BM_state),
@@ -755,12 +775,21 @@ class PrepareTurnLeft(State):
         self.cur_state = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
 
     def execute(self):
-        # TODO: implementation exec Preparing for Left Turn
         bhv_logger.debug("FSM Behavior State: Preparing for Left Turn")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Preparing for Left Turn
-        return 0
+        self.cur_state = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
+        self.logic.reset_state(state='IdentifyTargetLaneAndVehiclesOnTargetLane')
+        self.FSM_situation.cur_state = self.FSM_situation.states['IdentifyTargetLaneAndVehiclesOnTargetLane']
+        self.FSM_state.situation_state_static = None
 
 
 class TurnLeft(State):
@@ -773,7 +802,7 @@ class TurnLeft(State):
         else:
             self.init_state = 'Stopping'
 
-        self.FSM_turn_left = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'TurnClear': TurnClear(BM_state=self.BM_state),
                 'Stopping': Stopping(BM_state=self.BM_state),
@@ -789,19 +818,33 @@ class TurnLeft(State):
         self.cur_state = self.init_state
 
     def execute(self):
-        # TODO: implementation exec Turning Left
         bhv_logger.debug("FSM Behavior State: Turning Left")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Turning Left
-        return 0
+        if self.FSM_state.turn_clear == True:
+            self.init_state = 'TurnClear'
+        else:
+            self.init_state = 'Stopping'
+
+        self.cur_state = self.init_state
+        self.logic.reset_state(state=self.init_state)
+        self.FSM_situation.cur_state = self.FSM_situation.states[self.init_state]
+        self.FSM_state.situation_state_static = None
 
 
 class PrepareTurnRight(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_prepare_turn_right = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'IdentifyTargetLaneAndVehiclesOnTargetLane':
                     IdentifyTargetLaneAndVehiclesOnTargetLane(BM_state=self.BM_state),
@@ -814,12 +857,21 @@ class PrepareTurnRight(State):
         self.cur_state = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
 
     def execute(self):
-        # TODO: implementation exec Preparing for Right Turn
         bhv_logger.debug("FSM Behavior State: Preparing for Right Turn")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Preparing for Right Turn
-        return 0
+        self.cur_state = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
+        self.logic.reset_state(state='IdentifyTargetLaneAndVehiclesOnTargetLane')
+        self.FSM_situation.cur_state = self.FSM_situation.states['IdentifyTargetLaneAndVehiclesOnTargetLane']
+        self.FSM_state.situation_state_static = None
 
 
 class TurnRight(State):
@@ -832,7 +884,7 @@ class TurnRight(State):
         else:
             self.init_state = 'Stopping'
 
-        self.FSM_turn_right = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'TurnClear': TurnClear(BM_state=self.BM_state),
                 'Stopping': Stopping(BM_state=self.BM_state),
@@ -848,19 +900,33 @@ class TurnRight(State):
         self.cur_state = self.init_state
 
     def execute(self):
-        # TODO: implementation exec Turning Right
         bhv_logger.debug("FSM Behavior State: Turning Right")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Turning Right
-        return 0
+        if self.FSM_state.turn_clear == True:
+            self.init_state = 'TurnClear'
+        else:
+            self.init_state = 'Stopping'
+
+        self.cur_state = self.init_state
+        self.logic.reset_state(state=self.init_state)
+        self.FSM_situation.cur_state = self.FSM_situation.states[self.init_state]
+        self.FSM_state.situation_state_static = None
 
 
 class PrepareOvertake(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_prepare_overtake = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'IdentifyTargetLaneAndVehiclesOnTargetLane': IdentifyTargetLaneAndVehiclesOnTargetLane(BM_state),
                 'IdentifySpeedOfObstaclesOnTargetLane': IdentifySpeedOfObstaclesOnTargetLane(BM_state),
@@ -878,19 +944,28 @@ class PrepareOvertake(State):
         self.cur_state = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
 
     def execute(self):
-        # TODO: implementation exec Preparing Overtake
         bhv_logger.debug("FSM Behavior State: Preparing Overtake")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Preparing Overtake
-        return 0
+        self.cur_state = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
+        self.logic.reset_state(state='IdentifyTargetLaneAndVehiclesOnTargetLane')
+        self.FSM_situation.cur_state = self.FSM_situation.states['IdentifyTargetLaneAndVehiclesOnTargetLane']
+        self.FSM_state.situation_state_static = None
 
 
 class Overtake(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_overtake = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'Overtaking': Overtaking(BM_state),
                 'OvertakeComplete': OvertakeComplete(BM_state)},
@@ -902,19 +977,28 @@ class Overtake(State):
         self.cur_state = 'Overtaking'
 
     def execute(self):
-        # TODO: implementation exec Overtaking
         bhv_logger.debug("FSM Behavior State: Overtaking")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Overtaking
-        return 0
+        self.cur_state = 'Overtaking'
+        self.logic.reset_state(state='Overtaking')
+        self.FSM_situation.cur_state = self.FSM_situation.states['Overtaking']
+        self.FSM_state.situation_state_static = None
 
 
 class FinishOvertake(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_finish_overtake = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'IdentifyTargetLaneAndVehiclesOnTargetLane': IdentifyTargetLaneAndVehiclesOnTargetLane(BM_state),
                 'IdentifySpeedOfObstaclesOnTargetLane': IdentifySpeedOfObstaclesOnTargetLane(BM_state),
@@ -932,12 +1016,21 @@ class FinishOvertake(State):
         self.cur_state = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
 
     def execute(self):
-        # TODO: implementation exec Finishing Overtake
         bhv_logger.debug("FSM Behavior State: Finishing Overtake")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Finishing Overtake
-        return 0
+        self.cur_state = 'IdentifyTargetLaneAndVehiclesOnTargetLane'
+        self.logic.reset_state(state='IdentifyTargetLaneAndVehiclesOnTargetLane')
+        self.FSM_situation.cur_state = self.FSM_situation.states['IdentifyTargetLaneAndVehiclesOnTargetLane']
+        self.FSM_state.situation_state_static = None
 
 
 class PrepareTrafficLight(State):
@@ -945,7 +1038,7 @@ class PrepareTrafficLight(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_prepare_traffic_light = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'ObservingTrafficLight': ObservingTrafficLight(BM_state),
                 'SlowingDown': SlowingDown(BM_state)},
@@ -965,19 +1058,19 @@ class PrepareTrafficLight(State):
         # FSM
         transition, self.cur_state = self.logic.execute(self.cur_state)
         if transition is not None:
-            self.FSM_prepare_traffic_light.transition(transition)
+            self.FSM_situation.transition(transition)
         self.FSM_state.situation_state_static = self.cur_state
 
         # actions
-        self.FSM_prepare_traffic_light.execute()
+        self.FSM_situation.execute()
         bhv_logger.debug("FSM Behavior State: Traffic Light is: ", self.FSM_state.traffic_light_state)
 
     def reset_state(self):
         self.cur_state = 'ObservingTrafficLight'
         self.logic.reset_state(state='ObservingTrafficLight')
-        self.FSM_prepare_traffic_light.cur_state = self.FSM_prepare_traffic_light.states[
+        self.FSM_situation.cur_state = self.FSM_situation.states[
             'ObservingTrafficLight']
-        self.FSM_state.situation_state_static = 'ObservingTrafficLight'
+        self.FSM_state.situation_state_static = None
 
 
 class TrafficLight(State):
@@ -992,7 +1085,7 @@ class TrafficLight(State):
         else:
             self.init_state = 'Stopping'
 
-        self.FSM_traffic_light = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'GreenLight': GreenLight(BM_state=BM_state),
                 'Stopping': Stopping(BM_state=BM_state),
@@ -1016,25 +1109,25 @@ class TrafficLight(State):
         # FSM
         transition, self.cur_state = self.logic.execute(self.cur_state)
         if transition is not None:
-            self.FSM_traffic_light.transition(transition)
+            self.FSM_situation.transition(transition)
         self.FSM_state.situation_state_static = self.cur_state
 
         # actions
-        self.FSM_traffic_light.execute()
+        self.FSM_situation.execute()
         bhv_logger.debug("FSM Behavior State: Traffic Light is: ", self.FSM_state.traffic_light_state)
 
     def reset_state(self):
         self.cur_state = self.init_state
         self.logic.reset_state(state=self.init_state)
-        self.FSM_traffic_light.cur_state = self.FSM_traffic_light.states[self.init_state]
-        self.FSM_state.situation_state_static = self.init_state
+        self.FSM_situation.cur_state = self.FSM_situation.states[self.init_state]
+        self.FSM_state.situation_state_static = None
 
 
 class PrepareCrosswalk(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_prepare_crosswalk = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'ObservingCrosswalk': ObservingCrosswalk(BM_state),
                 'SlowingDown': SlowingDown(BM_state)},
@@ -1046,12 +1139,21 @@ class PrepareCrosswalk(State):
         self.cur_state = 'ObservingCrosswalk'
 
     def execute(self):
-        # TODO: implementation exec Preparing Crosswalk
         bhv_logger.debug("FSM Behavior State: Preparing Crosswalk")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Preparing Crosswalk
-        return 0
+        self.cur_state = 'ObservingCrosswalk'
+        self.logic.reset_state(state='ObservingCrosswalk')
+        self.FSM_situation.cur_state = self.FSM_situation.states['ObservingCrosswalk']
+        self.FSM_state.situation_state_static = None
 
 
 class Crosswalk(State):
@@ -1064,7 +1166,7 @@ class Crosswalk(State):
         else:
             self.init_state = 'Stopping'
 
-        self.FSM_crosswalk = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'CrosswalkClear': CrosswalkClear(BM_state),
                 'Stopping': Stopping(BM_state),
@@ -1080,19 +1182,33 @@ class Crosswalk(State):
         self.cur_state = self.init_state
 
     def execute(self):
-        # TODO: implementation exec Crosswalk
         bhv_logger.debug("FSM Behavior State: Crosswalk")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Crosswalk
-        return 0
+        if self.FSM_state.crosswalk_clear == True:
+            self.init_state = 'CrosswalkClear'
+        else:
+            self.init_state = 'Stopping'
+
+        self.cur_state = self.init_state
+        self.logic.reset_state(state=self.init_state)
+        self.FSM_situation.cur_state = self.FSM_situation.states[self.init_state]
+        self.FSM_state.situation_state_static = None
 
 
 class PrepareStopSign(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_prepare_stop_sign = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'ObservingStopYieldSign': ObservingStopYieldSign(BM_state),
                 'SlowingDown': SlowingDown(BM_state)},
@@ -1104,45 +1220,63 @@ class PrepareStopSign(State):
         self.cur_state = 'ObservingStopYieldSign'
 
     def execute(self):
-        # TODO: implementation exec Preparing Stop Sign
         bhv_logger.debug("FSM Behavior State: Preparing Stop Sign")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Preparing Stop Sign
-        return 0
+        self.cur_state = 'ObservingStopYieldSign'
+        self.logic.reset_state(state='ObservingStopYieldSign')
+        self.FSM_situation.cur_state = self.FSM_situation.states['ObservingStopYieldSign']
+        self.FSM_state.situation_state_static = None
 
 
 class StopSign(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_stop_sign = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'Stopping': Stopping(BM_state),
-                'WaitingForCrosswalkClearance': WaitingForCrosswalkClearance(BM_state),
+                'WaitingForStopYieldSignClearance': WaitingForStopYieldSignClearance(BM_state),
                 'ContinueDriving': ContinueDriving(BM_state)},
             possible_transitions={
                 'toStopping': Transition('Stopping'),
-                'toWaitingForCrosswalkClearance': Transition('WaitingForCrosswalkClearance'),
+                'toWaitingForStopYieldSignClearance': Transition('WaitingForStopYieldSignClearance'),
                 'toContinueDriving': Transition('ContinueDriving')},
             default_state='Stopping')
         self.logic = Logic.LogicStopSign(start_state='Stopping', BM_state=BM_state)
         self.cur_state = 'Stopping'
 
     def execute(self):
-        # TODO: implementation exec Stop Sign
         bhv_logger.debug("FSM Behavior State: Stop Sign")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Stop Sign
-        return 0
+        self.cur_state = 'Stopping'
+        self.logic.reset_state(state='Stopping')
+        self.FSM_situation.cur_state = self.FSM_situation.states['Stopping']
+        self.FSM_state.situation_state_static = None
 
 
 class PrepareYieldSign(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
         self.FSM_state = BM_state.FSM_state
-        self.FSM_prepare_yield_sign = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'ObservingStopYieldSign': ObservingStopYieldSign(BM_state),
                 'SlowingDown': SlowingDown(BM_state)},
@@ -1154,12 +1288,21 @@ class PrepareYieldSign(State):
         self.cur_state = 'ObservingStopYieldSign'
 
     def execute(self):
-        # TODO: implementation exec Preparing Yield Sign
         bhv_logger.debug("FSM Behavior State: Preparing Yield Sign")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Preparing Yield Sign
-        return 0
+        self.cur_state = 'ObservingStopYieldSign'
+        self.logic.reset_state(state='ObservingStopYieldSign')
+        self.FSM_situation.cur_state = self.FSM_situation.states['ObservingStopYieldSign']
+        self.FSM_state.situation_state_static = None
 
 
 class YieldSign(State):
@@ -1172,31 +1315,47 @@ class YieldSign(State):
         else:
             self.init_state = 'Stopping'
 
-        self.FSM_yield_sign = SimpleFSM(
+        self.FSM_situation = SimpleFSM(
             possible_states={
                 'StopYieldSignClear': StopYieldSignClear(BM_state),
                 'Stopping': Stopping(BM_state),
-                'WaitingForCrosswalkClearance': WaitingForCrosswalkClearance(BM_state),
+                'WaitingForStopYieldSignClearance': WaitingForStopYieldSignClearance(BM_state),
                 'ContinueDriving': ContinueDriving(BM_state)},
             possible_transitions={
                 'toStopYieldSignClear': Transition('StopYieldSignClear'),
                 'toStopping': Transition('Stopping'),
-                'toWaitingForCrosswalkClearance': Transition('WaitingForCrosswalkClearance'),
+                'toWaitingForStopYieldSignClearance': Transition('WaitingForStopYieldSignClearance'),
                 'toContinueDriving': Transition('ContinueDriving')},
             default_state=self.init_state)
         self.logic = Logic.LogicYieldSign(start_state=self.init_state, BM_state=BM_state)
         self.cur_state = self.init_state
 
     def execute(self):
-        # TODO: implementation exec Yield Sign
         bhv_logger.debug("FSM Behavior State: Yield Sign")
+        # FSM
+        transition, self.cur_state = self.logic.execute(self.cur_state)
+        if transition is not None:
+            self.FSM_situation.transition(transition)
+        self.FSM_state.situation_state_static = self.cur_state
+
+        # actions
+        self.FSM_situation.execute()
 
     def reset_state(self):
-        # TODO: implementation reset Yield Sign
-        return 0
+        if self.FSM_state.stop_yield_sign_clear == True:
+            self.init_state = 'StopYieldSignClear'
+        else:
+            self.init_state = 'Stopping'
+
+        self.cur_state = self.init_state
+        self.logic.reset_state(state=self.init_state)
+        self.FSM_situation.cur_state = self.FSM_situation.states[self.init_state]
+        self.FSM_state.situation_state_static = None
 
 
-'''Situation States'''
+####################################################################################################
+#                                         Situation States                                         #
+####################################################################################################
 
 
 class IdentifyTargetLaneAndVehiclesOnTargetLane(State):
@@ -1207,7 +1366,17 @@ class IdentifyTargetLaneAndVehiclesOnTargetLane(State):
     def execute(self):
         bhv_logger.debug("FSM Situation State: Identifying target lane and vehicles on target lane")
         # identify target lanelet
-        if self.FSM_state.behavior_state_dynamic == 'PrepareLaneChangeRight':
+        if self.FSM_state.behavior_state_static == 'PrepareLaneMerge':
+            lane_merge_lanelet_id = None
+            # search for next lane merge and get the id of the goal lanelet
+            for static_goal in self.BM_state.PP_state.static_route_plan:
+                if static_goal.goal_type == 'LaneMerge' and static_goal.end_s >= self.BM_state.ref_position_s:
+                    lane_merge_lanelet_id = static_goal.goal_lanelet_id
+            if lane_merge_lanelet_id is None:
+                bhv_logger.warning("No lane merge found ahead of current position.")
+
+            self.FSM_state.lane_change_target_lanelet_id = lane_merge_lanelet_id
+        elif self.FSM_state.behavior_state_dynamic == 'PrepareLaneChangeRight':
             self.FSM_state.lane_change_target_lanelet_id = self.BM_state.current_lanelet.adj_right
             self.FSM_state.lane_change_target_lanelet = self.BM_state.scenario.lanelet_network.find_lanelet_by_id(
                 self.FSM_state.lane_change_target_lanelet_id)
@@ -1215,8 +1384,7 @@ class IdentifyTargetLaneAndVehiclesOnTargetLane(State):
             self.FSM_state.lane_change_target_lanelet_id = self.BM_state.current_lanelet.adj_left
             self.FSM_state.lane_change_target_lanelet = self.BM_state.scenario.lanelet_network.find_lanelet_by_id(
                 self.FSM_state.lane_change_target_lanelet_id)
-        elif self.FSM_state.behavior_state_dynamic == 'PrepareMergingLanes':
-            return 0  # TODO
+
         # identify relevant objects on target lane
         self.FSM_state.obstacles_on_target_lanelet = hf.get_predicted_obstacles_on_lanelet(
             predictions=self.BM_state.predictions,
@@ -1501,7 +1669,7 @@ class SlowingDown(State):
     def execute(self):
         bhv_logger.debug("FSM Situation State: Slowing Down Car")
         self.FSM_state.slowing_car_for_traffic_light = True
-        self.VP_state.dist_to_tlna = self.BM_state.current_static_goal.stop_point_s - self.BM_state.nav_position_s - \
+        self.VP_state.dist_to_tlna = self.BM_state.current_static_goal.stop_point_s - self.BM_state.ref_position_s - \
                                    self.BM_state.vehicle_params.length
         self.VP_state.stop_distance = self.VP_state.dist_to_tl
 
@@ -1535,7 +1703,7 @@ class Stopping(State):
     def execute(self):
         bhv_logger.debug("FSM Situation State: Stopping the Car")
         self.FSM_state.slowing_car_for_traffic_light = True
-        self.VP_state.dist_to_tl = self.BM_state.current_static_goal.stop_point_s - self.BM_state.nav_position_s - \
+        self.VP_state.dist_to_tl = self.BM_state.current_static_goal.stop_point_s - self.BM_state.ref_position_s - \
                                    self.BM_state.vehicle_params.length
         self.VP_state.stop_distance = self.VP_state.dist_to_tl
 
@@ -1625,7 +1793,9 @@ class WaitingForStopYieldSignClearance(State):
         bhv_logger.debug("FSM Situation State: Waiting Target Lane Clearance at Stop or Yield Sign")
 
 
-'''Transition State'''
+####################################################################################################
+#                                         Transition State                                         #
+####################################################################################################
 
 
 class Transition(object):

@@ -23,6 +23,7 @@ class GoalReachedChecker:
         self.goal_state = planning_problem.goal.state_list[0]
         self.reference_path = reference_path
         self.coordinate_system = coordinate_system
+        self.position_flagg = False
         self.x_cl = None
         self.last_goal_position = self._initialize_last_goal_position()
         self.status = []
@@ -92,6 +93,8 @@ class GoalReachedChecker:
             self._check_velocity(normalized_state, goal_state, state_status)
             self._check_time_step(normalized_state, goal_state, state_status)
             self.status.append(state_status)
+            if not self.position_flagg:
+                self.position_flagg = state_status.get("position", False)
 
     def goal_reached_status(self, AgentStatus):
         """Get the goal status."""
@@ -108,7 +111,7 @@ class GoalReachedChecker:
                 ):
                     return True, AgentStatus.COMPLETED_OUT_OF_TIME, state_status, "Scenario Completed out of Time!"
                 elif "position" in state_status:
-                    if state_status["position"] and self.x_cl[0][0] >= self.last_goal_position:
+                    if self.position_flagg and self.x_cl[0][0] >= self.last_goal_position:
                         return True, AgentStatus.COMPLETED_FASTER, state_status, "Scenario Completed Faster than Target Time!"
 
             return False, AgentStatus.RUNNING, state_status, "Scenario is still running!"

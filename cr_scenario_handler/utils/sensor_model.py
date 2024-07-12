@@ -23,6 +23,19 @@ module_path = os.path.dirname(
 sys.path.append(module_path)
 
 
+def pi_range(angle):
+    """
+    Normalize an angle to be within the range [-pi, pi].
+    """
+    if angle <= -np.pi:
+        angle += 2 * np.pi
+        return angle
+    elif angle > np.pi:
+        angle -= 2 * np.pi
+        return angle
+    return angle
+
+
 def ignore_vehicles_in_cone_angle(time_step, obstacles, scenario, ego_pose, veh_length, cone_angle, cone_safety_dist):
     """Ignore vehicles behind ego for prediction if inside specific cone.
 
@@ -34,25 +47,28 @@ def ignore_vehicles_in_cone_angle(time_step, obstacles, scenario, ego_pose, veh_
     """
     ego_position = np.array([ego_pose.initial_state.position[0], ego_pose.initial_state.position[1]])
     ego_orientation = ego_pose.initial_state.orientation
-    cone_angle_rad = cone_angle / 180 * np.pi
+    cone_angle_rad = cone_angle * np.pi / 180.0
     ignore_pred_list = []
 
     for i in obstacles:
         obstacle = scenario.obstacle_by_id(i)
         obj_position = obstacle.occupancy_at_time(time_step).shape.center[:2]
-        obj_orientation = obstacle.occupancy_at_time(time_step).shape.orientation
+        # obj_orientation = obstacle.occupancy_at_time(time_step).shape.orientation
 
         # Convert object position from global to ego vehicle's local coordinate system
         loc_obj_pos = hf.rotate_glob_loc(obj_position - ego_position, -ego_orientation, matrix=False)
         loc_obj_pos[0] -= veh_length / 2.0  # Adjust for vehicle length to consider rear axle as origin
 
-        # Check if the object is behind the ego vehicle within the safety distance
-        if loc_obj_pos[0] < -cone_safety_dist:
+        # Calculate the distance from the ego vehicle
+        distance = np.linalg.norm(loc_obj_pos)
+
+        # Check if the object is behind the ego vehicle, within the cone angle, and farther away than the safety distance
+        if loc_obj_pos[0] < 0 and distance > cone_safety_dist:
             # Calculate the angle of the object relative to the ego vehicle's orientation
-            obj_angle = math.atan2(loc_obj_pos[1], loc_obj_pos[0])
+            obj_angle = pi_range(math.atan2(loc_obj_pos[1], loc_obj_pos[0]))
 
             # Check if the object is within the cone angle
-            if abs(obj_angle) < cone_angle_rad / 2.0:
+            if abs(abs(obj_angle) - np.pi) < cone_angle_rad / 2.0:
                 ignore_pred_list.append(i)
 
     # Remove ignored obstacles from the list

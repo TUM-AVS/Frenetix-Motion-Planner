@@ -44,11 +44,11 @@ lightcolors = ["#ffd569", "#f8ff69", "#c6ff69", "#94ff69", "#69ff70",
 
 
 def visualize_agent_at_timestep(scenario: Scenario, planning_problem: PlanningProblem, ego: DynamicObstacle,
-                                timestep: int, config, log_path: str,
-                                traj_set=None, optimal_traj=None, ref_path: np.ndarray = None,
-                                rnd: MPRenderer = None, predictions: dict = None, plot_window: int = None,
-                                visible_area=None, occlusion_map=None, save: bool = False, show: bool = False, gif: bool = False,
-                                replanning_counter: int = 0):
+                                timestep: int, config, log_path: str, traj_set=None, optimal_traj=None,
+                                ref_path: np.ndarray = None, rnd: MPRenderer = None, predictions: dict = None,
+                                plot_window: int = None, visible_area=None, occlusion_map=None,
+                                behavior_module_state: {} = None, save: bool = False, show: bool = False,
+                                gif: bool = False, replanning_counter: int = 0):
     """
     Function to visualize planning result from the reactive planner for a given time step
     :param scenario: CommonRoad scenario object
@@ -169,6 +169,45 @@ def visualize_agent_at_timestep(scenario: Scenario, planning_problem: PlanningPr
     if ref_path is not None:
         rnd.ax.plot(ref_path[:, 0], ref_path[:, 1], color='g', marker='.', markersize=1, zorder=19, linewidth=0.8,
                     label='reference path')
+
+    # visualize behavior states
+    if behavior_module_state is not None:
+        if config.behavior.use_behavior_planner and config.behavior.visualize_states:
+            rnd.f.texts = []  # remove the texts, otherwise they are stacking
+            behavior_text_left = ""
+            if config.behavior.visualization_mode == "SLIM":
+                behavior_text_left = (
+                    f"behavior_state_static: {str(behavior_module_state.get('behavior_state_static'))}\n"
+                    f"behavior_state_dynamic: {str(behavior_module_state.get('behavior_state_dynamic'))}\n"
+                )
+            if config.behavior.visualization_mode in ["BASIC", "EXTENDED", "FULL"]:
+                behavior_text_left = (
+                    f"street_setting: {str(behavior_module_state.get('street_setting'))}\n"
+                    f"behavior_state_static: {str(behavior_module_state.get('behavior_state_static'))}\n"
+                    f"situation_state_static: {str(behavior_module_state.get('situation_state_static'))}\n"
+                    f"behavior_state_dynamic: {str(behavior_module_state.get('behavior_state_dynamic'))}\n"
+                    f"situation_state_dynamic: {str(behavior_module_state.get('situation_state_dynamic'))}\n"
+                )
+            if config.behavior.visualization_mode in ["EXTENDED", "FULL"]:
+                behavior_text_left += (
+                    f"goal_velocity: {behavior_module_state.get('goal_velocity'):.2f}\n"
+                    f"desired_velocity: {behavior_module_state.get('desired_velocity'):.2f}\n"
+                    f"velocity: {behavior_module_state.get('velocity'):.2f}\n"
+                )
+            if config.behavior.visualization_mode in ["FULL"]:
+                behavior_text_left += (
+                    f"TTC: {behavior_module_state.get('TTC'):.2f}\n"
+                    f"MAX: {behavior_module_state.get('MAX'):.2f}\n"
+                    f"lane_change_target_lanelet_id: {str(behavior_module_state.get('lane_change_target_lanelet_id'))}\n"
+                    f"slowing_car_for_traffic_light: {str(behavior_module_state.get('slowing_car_for_traffic_light'))}\n"
+                    f"waiting_for_green_light: {str(behavior_module_state.get('waiting_for_green_light'))}\n"
+                    f"condition_factor: {behavior_module_state.get('condition_factor'):.2f}\n"
+                    f"lon_dyn_cond_factor: {behavior_module_state.get('lon_dyn_cond_factor'):.2f}\n"
+                    f"lat_dyn_cond_factor: {behavior_module_state.get('lat_dyn_cond_factor'):.2f}\n"
+                    f"visual_cond_factor: {behavior_module_state.get('visual_cond_factor'):.2f}\n"
+                )
+
+            rnd.f.text(0.15, 0.85, behavior_text_left, ha='left', va='top', fontsize=12)
 
     # save as .png file
     if config.visualization.save_plots or save or gif:

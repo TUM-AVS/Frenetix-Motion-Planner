@@ -22,7 +22,6 @@ class SimulationLogger:
     """
         Simulation logging object, which writes the data collected during the simulation to a sql database
     """
-
     @staticmethod
     def _convert_config(config: Configuration) -> dict:
         """Converts config to dict for writing config into SQL database."""

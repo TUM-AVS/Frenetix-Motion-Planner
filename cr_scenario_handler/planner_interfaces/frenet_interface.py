@@ -98,7 +98,9 @@ class FrenetPlannerInterface(PlannerInterface):
 
         # Set reference path
         if not self.config_sim.behavior.use_behavior_planner:
-            self.route_planner = RoutePlanner(scenario=scenario, planning_problem=planning_problem,
+            self.route_planner = RoutePlanner(lanelet_network=scenario.lanelet_network,
+                                              planning_problem=planning_problem,
+                                              scenario=scenario,
                                               extended_search=False)
             shortest_route = self.route_planner.plan_routes().retrieve_shortest_route(retrieve_shortest=True)
 
@@ -112,13 +114,14 @@ class FrenetPlannerInterface(PlannerInterface):
             self.reference_path = smooth_ref_path(reference_path)
 
         else:
+            config_sim.behavior.dt = config_planner.planning.dt
+            config_sim.behavior.replanning_frequency = config_planner.planning.replanning_frequency
             self.behavior_modul = BehaviorModule(scenario=scenario,
                                                  planning_problem=planning_problem,
                                                  init_ego_state=x_0,
-                                                 dt=config_planner.planning.dt,
                                                  config=config_sim,
                                                  log_path=self.log_path)
-            self.reference_path = smooth_ref_path(self.behavior_modul.reference_path)
+            self.reference_path = self.behavior_modul.reference_path
 
         self.goal_area = gc.get_goal_area_shape_group(planning_problem=planning_problem, scenario=scenario)
 
@@ -185,11 +188,18 @@ class FrenetPlannerInterface(PlannerInterface):
             # set desired velocity
             self.desired_velocity = self.velocity_planner.calculate_desired_velocity(self.x_0, self.x_cl[0][0])
         else:
-            behavior = self.behavior_modul.execute(predictions=predictions, ego_state=self.x_0, time_step=self.DT)
+            # raise NotImplementedError
+            behavior = self.behavior_modul.execute(
+                predictions=predictions,
+                ego_state=self.x_0,
+                time_step=self.replanning_counter)
             self.desired_velocity = behavior.desired_velocity
             if behavior.reference_path is not None:
                 self.reference_path = behavior.reference_path
+            # self.stop_point_s = behavior.stop_point_s
+            # self.desired_velocity_stop_point = behavior.desired_velocity_stop_point
             self.behavior_module_state = behavior.behavior_planner_state
+        # End TODO
 
         self.planner.update_externals(scenario=scenario, x_0=self.x_0, x_cl=self.x_cl,
                                       desired_velocity=self.desired_velocity, predictions=predictions)

@@ -107,7 +107,7 @@ def extend_ref_path(ref_path, init_pos):
     return ref_path
 
 
-def smooth_ref_path(reference: np.ndarray):
+def smooth_ref_path(reference: np.ndarray, smoothing_interval: float = 4):
     _, idx = np.unique(reference, axis=0, return_index=True)
     reference = reference[np.sort(idx)]
 
@@ -117,7 +117,7 @@ def smooth_ref_path(reference: np.ndarray):
     dist_sum_in_m = np.round(np.sum(distances), 3)
     average_dist_in_m = 0.125  # np.round(np.average(distances), 3)
 
-    t = int(4 / average_dist_in_m)  # 5 meters distance per point
+    t = int(smoothing_interval / average_dist_in_m)  # smoothing_interval meters distance per point
     reference = reference[::t]
     spline_discretization = int(6 * dist_sum_in_m)  # 2 = 0.5 m distances between points
 

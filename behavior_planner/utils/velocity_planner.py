@@ -1,4 +1,4 @@
-__author__ = "Luca Troncone, Rainer Trauth"
+__author__ = "Moritz Ellermann, Rainer Trauth"
 __copyright__ = "TUM Institute of Automotive Technology"
 __version__ = "1.0"
 __maintainer__ = "Rainer Trauth"
@@ -47,14 +47,17 @@ class VelocityPlanner(object):
 
     def execute(self):
         """ Execute velocity planner each time step"""
-        if self.BM_state.predictions:
-            self.VP_state.closest_preceding_vehicle, self.VP_state.dist_preceding_veh, self.VP_state.vel_preceding_veh =\
-                hf.get_closest_preceding_obstacle(predictions=self.BM_state.predictions,
-                                                  lanelet_network=self.BM_state.scenario.lanelet_network,
-                                                  coordinate_system=self.PP_state.cl_ref_coordinate_system,
-                                                  lanelet_id=self.BM_state.current_lanelet_id,
-                                                  ego_position_s=self.BM_state.ref_position_s,
-                                                  ego_state=self.BM_state.ego_state)
+
+        self.VP_state.closest_preceding_vehicle, self.VP_state.dist_preceding_veh, self.VP_state.vel_preceding_veh =\
+            hf.get_closest_preceding_obstacle(predictions=self.BM_state.predictions,
+                                              lanelet_network=self.BM_state.scenario.lanelet_network,
+                                              coordinate_system=self.PP_state.cl_ref_coordinate_system,
+                                              lanelet_id=self.BM_state.current_lanelet_id,
+                                              ego_position_s=self.BM_state.ref_position_s,
+                                              ego_state=self.BM_state.ego_state)
+
+        # calculate comfortable stopping distance
+        self._calc_comfortable_stopping_distance()
 
         # calculate driving conditions factor
         self._get_condition_factor()
@@ -71,10 +74,6 @@ class VelocityPlanner(object):
         self._set_desired_velocity()
 
     def _set_desired_velocity(self):
-        if self.BM_state.time_step < 3 or self.VP_state.goal_velocity is None:  # wait till predictions are stabilized
-            self.VP_state.desired_velocity = self.BM_state.init_velocity
-            return
-
         # clip velocity to maximal accelerating and braking values
         self.VP_state.desired_velocity = self._clip_velocity()
 
@@ -83,7 +82,7 @@ class VelocityPlanner(object):
             self.VP_state.desired_velocity = \
                 self.BM_state.ego_state.velocity + self.FSM_state.free_space_offset * 0.75
             behavior_message_logger.debug("BP slowing vehicle for lane change maneuver, recommended velocity is: " +
-                             str(self.VP_state.desired_velocity))
+                                          str(self.VP_state.desired_velocity))
             self.FSM_state.change_velocity_for_lane_change = False
 
         # no strong acceleration while preparing lane changes
@@ -93,22 +92,14 @@ class VelocityPlanner(object):
             if self.VP_state.desired_velocity > self.BM_state.ego_state.velocity * 1.05:
                 self.VP_state.desired_velocity = self.BM_state.ego_state.velocity * 1.05
                 behavior_message_logger.debug("BP no strong vehicle acceleration while lane change maneuvers, "
-                                 "recommended velocity is: " + str(self.VP_state.desired_velocity))
+                                              "recommended velocity is: " + str(self.VP_state.desired_velocity))
 
         # stopping for traffic light
         # if self.FSM_state.slowing_car_for_traffic_light:
         #     self.VP_state.desired_velocity = 0
 
-        # prevent large velocity jumps
-        if self.BM_state.ego_state.velocity > 8.333:
-            if self.VP_state.desired_velocity > self.BM_state.ego_state.velocity * 1.33:
-                behavior_message_logger.debug("BP planner velocity too high, recommended velocity is: " +
-                                 str(self.BM_state.ego_state.velocity * 1.33))
-                self.VP_state.desired_velocity = self.BM_state.ego_state.velocity * 1.33
-            elif self.VP_state.desired_velocity < self.BM_state.ego_state.velocity * 0.67:
-                behavior_message_logger.debug("BP planner velocity too low, recommended velocity is: " +
-                                 str(self.BM_state.ego_state.velocity * 0.67))
-                self.VP_state.desired_velocity = self.BM_state.ego_state.velocity * 0.67
+        if self.VP_state.desired_velocity <= self.BM_state.config.behavior.zero_velocity_threshold:
+            self.VP_state.desired_velocity = 0
 
     def _clip_velocity(self):
         """
@@ -120,34 +111,34 @@ class VelocityPlanner(object):
         is outside the minimal and maximal velocity interval. \n
         Negative velocities are also handled appropriately.
 
-        :param input_vel: The desired velocity
-        :param v_ego: Current velocity of the vehicle
-        :param a_max: Maximal acceleration of the vehicle
-        :param v_max: Maximal velocity of the vehicle
-        :param v_min: Minimal velocity of the vehicle
-        :param time_step: time step of the simulation
+        # :param input_vel: The desired velocity
+        # :param v_ego: Current velocity of the vehicle
+        # :param a_max: Maximal acceleration of the vehicle
+        # :param v_max: Maximal velocity of the vehicle
+        # :param v_min: Minimal velocity of the vehicle
+        # :param delta: factor by which to multiply the maximal acceleration
 
         :returns: clipped velocity
         """
         input_vel = self.VP_state.goal_velocity
         v_ego = self.BM_state.ego_state.velocity
         a_max = self.BM_state.config.vehicle.a_max
-        v_max = self.BM_state.config.vehicle.v_max  # TODO vehicle or traffic value
-        v_min = -20  # TODO hard coded
-        time_step = self.BM_state.dt
+        v_max = self.BM_state.config.vehicle.v_max
+        v_min = 0.0  # TODO hard coded
+        delta = self.BM_state.config.behavior.a_max_delta
 
         return min(max(
             input_vel,
 
             # this is the old velocity with maximal possible deceleration
-            (v_ego + (-2 * a_max * time_step)) if v_ego > 0 else (v_ego + (-1 * a_max * time_step)),
+            (v_ego + (-2 * a_max * delta)) if v_ego > 0 else (v_ego + (-1 * a_max * delta)),
             # make sure that if the velocity is outside the bounds the deceleration is still correctly clipped
-            v_min if v_min <= v_ego else v_ego + a_max * time_step),
+            v_min if v_min <= v_ego else v_ego + a_max * delta),
 
             # this is the old velocity with maximal possible acceleration
-            (v_ego + (a_max * time_step)) if v_ego >= 0 else (v_ego + (2 * a_max * time_step)),
+            (v_ego + (a_max * delta)) if v_ego >= 0 else (v_ego + (2 * a_max * delta)),
             # make sure that if the velocity is outside the bounds the acceleration is still correctly clipped
-            v_max if v_max >= v_ego else v_ego + (-2 * a_max * time_step))
+            v_max if v_max >= v_ego else v_ego + (-2 * a_max * delta))
 
     def _get_goal_velocity(self):
         """Compare TTC and MAX velocities and set the final goal velocity"""
@@ -171,6 +162,9 @@ class VelocityPlanner(object):
         else:
             self.VP_state.goal_velocity = None
             self.VP_state.velocity_mode = None
+
+    def _stop_distance(self, velocity, deceleration):
+        return abs((velocity ** 2) / (-2 * deceleration))
 
     def _calc_safety_distance(self):
         """
@@ -196,55 +190,63 @@ class VelocityPlanner(object):
             3. ego <-<- other \n
             4. ego <--> other \n
 
-        return values:
-            1. safety_dist: is the minimal safety distance \n
+        resulting values:
+            1. safety_dist: is the safety distance \n
             2. relevant: is a boolean indicating that the ego vehicle is heading towards the other vehicle \n
 
-        :param v_ego: velocity of the ego vehicle
-        :param v_other: velocity of the other vehicle
-        :param a_max: the maximal acceleration
-        :param delta: reaction time in seconds
-        :param dist: current distance between the ego vehicle and the other vehicle
+        # :param v_ego: velocity of the ego vehicle
+        # :param v_other: velocity of the other vehicle
+        # :param a_max: the maximal acceleration
+        # :param delta: reaction time in seconds
+        # :param dist: current distance between the ego vehicle and the other vehicle
 
-        :returns: safety_dist, relevant
+        :returns: relevant
+        :return type: boolean
         """
         # get base values
         v_ego = self.BM_state.ego_state.velocity
         v_other = self.VP_state.vel_preceding_veh
-        a_max_ego = self.BM_state.config.vehicle.a_max
-        a_max_other = a_max_ego
+        a_max_ego = self.BM_state.vehicle_params.a_max
+        a_max_other = a_max_ego  # assume that the other vehicle has the same properties
+        len_ego = self.BM_state.vehicle_params.length
         dist = self.VP_state.dist_preceding_veh
-        delta = 0.3  # TODO hard coded
+        delta = self.BM_state.dt * self.BM_state.config.behavior.replanning_frequency
+        safety_dist_sec = self.BM_state.config.behavior.safety_distance_buffer
 
         # calculate reaction and stopping distances
         ego_react_dist = v_ego * delta
         other_react_dist = v_other * delta
-        ego_stop_dist = (v_ego ** 2) / (-2 * a_max_ego)
-        other_stop_dist = (v_other ** 2) / (-2 * a_max_other)
+        ego_stop_dist = self._stop_distance(v_ego, a_max_ego)
+        other_stop_dist = self._stop_distance(v_other, a_max_other)
+        self.VP_state.stop_dist_preceding_veh = abs(other_stop_dist)
 
         # set result values
-        safety_dist = None
+        safety_dist = len_ego / 2 + 0.5
         relevant = True
 
         # ego vehicle and other vehicle drive towards each other (1)
         if (dist >= 0 and v_ego >= 0 and v_other < 0) or (dist <  0 and v_ego < 0 and v_other >= 0):
-            safety_dist = abs(ego_react_dist) + abs(ego_stop_dist) + abs(other_stop_dist)
-            safety_dist += max(v_ego * 2, v_other * 2)
+            safety_dist += abs(ego_react_dist) + abs(ego_stop_dist) + abs(other_stop_dist)
+            self.VP_state.min_safety_dist = safety_dist
+            safety_dist += max(v_ego * safety_dist_sec, v_other * safety_dist_sec)
 
         # ego vehicle drives behind other vehicle (2)
         elif (dist >= 0 and v_ego >= 0 and v_other >= 0) or (dist < 0 and v_ego < 0 and v_other < 0):
-            safety_dist = abs(ego_react_dist) + abs(ego_stop_dist) - abs(other_stop_dist)
-            safety_dist += v_ego * 2
+            safety_dist += abs(ego_react_dist) + abs(ego_stop_dist) - abs(other_stop_dist)
+            self.VP_state.min_safety_dist = safety_dist
+            safety_dist += (v_other + v_ego) / 2 * safety_dist_sec
 
         # ego vehicle drives in front of other vehicle (3)
         elif (dist >= 0 and v_ego < 0 and v_other < 0) or (dist < 0 and v_ego >= 0 and v_other >= 0):
-            safety_dist = abs(other_react_dist) + abs(other_stop_dist) - abs(ego_stop_dist)
-            safety_dist += v_other * 2
+            safety_dist += abs(other_react_dist) + abs(other_stop_dist) - abs(ego_stop_dist)
+            self.VP_state.min_safety_dist = safety_dist
+            safety_dist += (v_other + v_ego) / 2 * safety_dist_sec
             relevant = False
 
         # ego vehicle and other vehicle drive away from each other (4)
         elif (dist >= 0 and v_ego < 0 and v_other >= 0) or (dist <  0 and v_ego >= 0 and v_other <  0):
-            safety_dist = -np.inf
+            safety_dist += -np.inf
+            self.VP_state.min_safety_dist = safety_dist
             relevant = False
 
         self.VP_state.safety_dist = safety_dist
@@ -263,11 +265,25 @@ class VelocityPlanner(object):
                 self.VP_state.TTC = self.VP_state.TTC_unconditioned * self.VP_state.condition_factor
             else:
                 self.VP_state.TTC = None
+                self.VP_state.stop_dist_preceding_veh = None
+                self.VP_state.min_safety_dist = None
         else:
             self.VP_state.TTC = None
+            self.VP_state.stop_dist_preceding_veh = None
+            self.VP_state.min_safety_dist = None
+
+    def _calc_comfortable_stopping_distance(self):
+        ego_react_dist = (self.BM_state.ego_state.velocity
+                          * self.BM_state.dt
+                          * self.BM_state.config.behavior.replanning_frequency)
+        self.VP_state.comfortable_stopping_distance = (
+                ego_react_dist
+                + self._stop_distance(self.BM_state.ego_state.velocity,
+                                      self.BM_state.config.behavior.comfortable_deceleration_rate))
 
     def _set_default_speed_limit(self):
         """Setting the default speed limit according to the street setting state from FSM"""
+        # TODO make it Country dependent: DEU/ESP/USA/ZAM etc.
 
         if self.FSM_state.street_setting == 'Highway':
             self.VP_state.speed_limit_default = 130 / 3.6

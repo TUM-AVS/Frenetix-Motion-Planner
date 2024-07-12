@@ -14,9 +14,9 @@ plot_window_dyn: 30
 # draw obstacles with vehicle icons
 draw_icons: True
 # show vehicle ids
-show_labels: False
+show_labels: True
 # show reference path
-draw_reference_path: False
+draw_reference_path: True
 # show predictions
 draw_predictions: False
 # show planning problem

@@ -1,25 +1,34 @@
-###############################################################################
-# WARNING: This is a Beta Version!!!!! Powerful Verison will be released later.
-###############################################################################
-
 # Use Behavior Planner
 use_behavior_planner: False  # WARNING: This is a Beta Version
 
+# general configs
+dt: 0.1  # s, length of a simulation time step
+replanning_frequency: 3  # time steps, should be set by Planner Interface during initialization
+
 # path_planner configs
-dist_between_points: 0.125
+dist_between_points: 0.125  # m
+preparation_time: 3  # s, time of a static preparation state
+goal_time: 2  # s, time of a static goal state
+distance_self_intersection: 10 # m, shorten extension of ref path by this if self intersecting
 
 # velocity_planner configs
 #min_TTC_to_preceading_vehicle: 3.0
+safety_distance_buffer: 2  # s, safety distance to the other car relative to speed
+a_max_delta: 0.3  # s, to calculate the maximum acceleration limit over this time period
+comfortable_deceleration_rate: 3.4  # m/s^2
+zero_velocity_threshold: 0.278  # m/s, slower desired velocities are set to 0
+
+# stop_point configs
+default_time_horizon: 2  # s
+min_stop_point_dist: 1.4  # m, minimal distance of the stop_point ahead of current position
+min_stop_point_time: 1  # s, minimal distance relative to the velocity of the stop_point ahead of current position
 
 # Behavior Logging
-behavior_log_mode: DEBUG  # Options: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL
+behavior_log_mode_file: DEBUG  # Options: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL
+behavior_log_mode_stdout: INFO  # Options: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL
 archive_previous_logs: False
 minimal_logging: False
 
 # Behavior Visualization
 visualize_states: True  # adds static and dynamic behavior and situation states to the visualization
-# States to visualize; TODO remove these values and use the BehaviorPlannerState object instead
-behavior_state_static: None
-situation_state_static: None
-behavior_state_dynamic: None
-situation_state_dynamic: None
+visualization_mode: EXTENDED  # Options: SLIM, BASIC, EXTENDED, FULL

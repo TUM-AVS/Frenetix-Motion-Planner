@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "frenetix-motion-planner"
-version = "2024.2"
+version = "2024.3"
 description = "Frenetix Motion Planner: Sampling-based Frenet Planner & Multi-agent CommonRoad Scenario Handler"
 license = "LGPL-3.0-or-later"
 authors = [
@@ -27,26 +27,26 @@ python = ">=3.9,<3.12"
 
 # internal, will be resolved when we publish it.
 
-commonroad-drivability-checker = "^2024.1"
-commonroad-route-planner = "^2024.1.1"
-commonroad-io = ">=2024.1"
+commonroad-drivability-checker = "~2024.1"
+commonroad-route-planner = "~2024.2.0"
+commonroad-io = "~2024.1"
 commonroad-vehicle-models = "^3.0.2"
 
-frenetix = ">=0.2.0"
+frenetix = ">=0.3.2"
 # frenetix-occlusion = ">=2024.1.2"
 
-wale-net = ">=3.0.3"
-matplotlib = "^3.8.1"
+wale-net = "~3.0.3"
+matplotlib = "~3.8.1"
 numpy = "^1.24.2"
 methodtools = "^0.4.7"
 omegaconf = "^2.1.1"
 scipy = "^1.9.3"
-onnxruntime = "^1.16.3"
-pygeos = "^0.14"
+onnxruntime = "~1.16.3"
+pygeos = "~0.14"
 imageio = "^2.31.2"
-shapely = "^2.0.3"
-wheel = "^0.38.4"
-pandas = "^2.0.3"
+shapely = "^2.0.4"
+wheel = "~0.38.4"
+pandas = "~2.0.3"
 triangle = ">=20200424"
 psutil = ">=5.9.6"
 

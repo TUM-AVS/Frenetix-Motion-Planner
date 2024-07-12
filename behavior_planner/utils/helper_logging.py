@@ -1,4 +1,4 @@
-__author__ = "Luca Troncone, Rainer Trauth"
+__author__ = "Moritz Ellermann, Rainer Trauth"
 __copyright__ = "TUM Institute of Automotive Technology"
 __version__ = "1.0"
 __maintainer__ = "Rainer Trauth"
@@ -12,92 +12,102 @@ import sys
 
 class BehaviorLogger(object):
 
-    def __init__(self, behavior_config, logger="Behavior_logger"):
+    def __init__(self, behavior_config, logger="Behavior_logger", column_headers: [] = None):
         self._behavior_config = behavior_config
 
-        if behavior_config.minimal_logging:
-            self._column_headers = [
-                "time_step",
-                "ref_position_s",
-                "street_setting",
-                "behavior_state_static",
-                "situation_state_static",
-                "behavior_state_dynamic",
-                "situation_state_dynamic",
-                "situation_time_step_counter",
-                "lane_change_target_lanelet_id",
-                "nav_lane_changes_left",
-                "nav_lane_changes_right",
-                "overtaking",
-                "velocity",
-                "goal_velocity",
-                "velocity_mode",
-                "TTC",
-                "MAX",
-                "change_velocity_for_lane_change",
-                "slowing_car_for_traffic_light",
-                "waiting_for_green_light"
-            ]
+        if column_headers is None:
+            if behavior_config.minimal_logging:
+                self._column_headers = [
+                    "time_step",
+                    "ref_position_s",
+                    "street_setting",
+                    "behavior_state_static",
+                    "situation_state_static",
+                    "behavior_state_dynamic",
+                    "situation_state_dynamic",
+                    "velocity",
+                    "goal_velocity",
+                    "desired_velocity",
+                    "situation_time_step_counter",
+                    "lane_change_target_lanelet_id",
+                    "nav_lane_changes_left",
+                    "nav_lane_changes_right",
+                    "overtaking",
+                    "velocity_mode",
+                    "TTC",
+                    "MAX",
+                    "change_velocity_for_lane_change",
+                    "slowing_car_for_traffic_light",
+                    "waiting_for_green_light"
+                ]
+            else:
+                self._column_headers = [
+                    "time_step",
+                    "ref_position_s",
+                    "street_setting",
+                    "behavior_state_static",
+                    "situation_state_static",
+                    "behavior_state_dynamic",
+                    "situation_state_dynamic",
+                    "situation_time_step_counter",
+                    "stop_point_s",
+                    "stop_point_dist",
+                    "desired_velocity_stop_point",
+                    "velocity",
+                    "goal_velocity",
+                    "desired_velocity",
+                    "velocity_mode",
+                    "TTC",
+                    "MAX",
+                    "speed_limit_default",
+                    "speed_limit",
+                    "change_velocity_for_lane_change",
+                    "traffic_light_state",
+                    "slowing_car_for_traffic_light",
+                    "waiting_for_green_light",
+                    "closest_preceding_vehicle",
+                    "dist_preceding_veh",
+                    "vel_preceding_veh",
+                    "ttc_conditioned",
+                    "ttc_relative",
+                    "min_safety_dist",
+                    "safety_dist",
+                    "stop_distance",
+                    "comfortable_stopping_distance",
+                    "dist_to_tl",
+                    "condition_factor",
+                    "lon_dyn_cond_factor",
+                    "lat_dyn_cond_factor",
+                    "visual_cond_factor",
+                    "lane_change_target_lanelet_id",
+                    "nav_lane_changes_left",
+                    "nav_lane_changes_right",
+                    "overtake_lange_changes_offset",
+                    "overtaking",
+                    "do_lane_change",
+                    "undo_lane_change",
+                    "initiated_lane_change",
+                    "undid_lane_change",
+                    "detected_lanelets",
+                    "obstacles_on_target_lanelet",
+                    "free_space_offset",
+                    "free_space_on_target_lanelet",
+                    "lane_change_left_ok",
+                    "lane_change_right_ok",
+                    "lane_change_left_done",
+                    "lane_change_right_done",
+                    "lane_change_prep_right_abort",
+                    "lane_change_prep_left_abort",
+                    "lane_change_right_abort",
+                    "lane_change_left_abort",
+                    "no_auto_lane_change",
+                    "turn_clear",
+                    "crosswalk_clear",
+                    "stop_yield_sign_clear",
+                    "reference_path"
+                ]
         else:
-            self._column_headers = [
-                "time_step",
-                "ref_position_s",
-                "street_setting",
-                "behavior_state_static",
-                "situation_state_static",
-                "behavior_state_dynamic",
-                "situation_state_dynamic",
-                "situation_time_step_counter",
-                "lane_change_target_lanelet_id",
-                "nav_lane_changes_left",
-                "nav_lane_changes_right",
-                "overtake_lange_changes_offset",
-                "overtaking",
-                "do_lane_change",
-                "undo_lane_change",
-                "initiated_lane_change",
-                "undid_lane_change",
-                "detected_lanelets",
-                "obstacles_on_target_lanelet",
-                "free_space_offset",
-                "free_space_on_target_lanelet",
-                "lane_change_left_ok",
-                "lane_change_right_ok",
-                "lane_change_left_done",
-                "lane_change_right_done",
-                "lane_change_prep_right_abort",
-                "lane_change_prep_left_abort",
-                "lane_change_right_abort",
-                "lane_change_left_abort",
-                "no_auto_lane_change",
-                "turn_clear",
-                "crosswalk_clear",
-                "stop_yield_sign_clear",
-                "velocity",
-                "speed_limit_default",
-                "speed_limit",
-                "goal_velocity",
-                "velocity_mode",
-                "TTC",
-                "MAX",
-                "change_velocity_for_lane_change",
-                "traffic_light_state",
-                "slowing_car_for_traffic_light",
-                "waiting_for_green_light",
-                "closest_preceding_vehicle",
-                "dist_preceding_veh",
-                "vel_preceding_veh",
-                "ttc_conditioned",
-                "ttc_relative",
-                "safety_dist",
-                "stop_distance",
-                "dist_to_tl",
-                "condition_factor",
-                "lon_dyn_cond_factor",
-                "lat_dyn_cond_factor",
-                "visual_cond_factor",
-                "reference_path"
-            ]
+            self._column_headers = column_headers
 
         # Define the path for the log file
         self._message_log_file_path = os.path.join(self._behavior_config.behavior_log_path_scenario, "messages.log")
@@ -157,9 +167,10 @@ class BehaviorLogger(object):
         stream_handler.setFormatter(stream_formatter)
 
         # set logging levels
-        self.message_logger.setLevel(self._behavior_config.behavior_log_mode)
-        file_handler.setLevel(self._behavior_config.behavior_log_mode)  # file_handler.setLevel(logging.DEBUG)
-        stream_handler.setLevel(self._behavior_config.behavior_log_mode)  # file_handler.setLevel(logging.INFO)
+        self.message_logger.setLevel(
+            min(self._behavior_config.behavior_log_mode_file, self._behavior_config.behavior_log_mode_stdout))
+        file_handler.setLevel(self._behavior_config.behavior_log_mode_file)  # file_handler.setLevel(logging.DEBUG)
+        stream_handler.setLevel(self._behavior_config.behavior_log_mode_stdout)  # file_handler.setLevel(logging.INFO)
 
         # add handlers
         self.message_logger.addHandler(file_handler)

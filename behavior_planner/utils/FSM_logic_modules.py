@@ -1,4 +1,4 @@
-__author__ = "Luca Troncone, Rainer Trauth"
+__author__ = "Moritz Ellermann, Rainer Trauth"
 __copyright__ = "TUM Institute of Automotive Technology"
 __version__ = "1.0"
 __maintainer__ = "Rainer Trauth"
@@ -73,7 +73,7 @@ class LogicBehaviorStatic:
         self.transition = None
 
         for static_goal in self.static_route_plan:
-            if static_goal.start_s <= self.BM_state.nav_position_s < static_goal.end_s:
+            if static_goal.start_s <= self.BM_state.ref_position_s < static_goal.end_s:
                 self.BM_state.current_static_goal = static_goal
                 if self.cur_state != static_goal.goal_type:
                     self.cur_state = static_goal.goal_type

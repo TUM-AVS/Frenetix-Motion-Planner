@@ -689,7 +689,8 @@ class Simulation:
         # update scenario
         self.update_scenario()
         # Calculate new predictions
-        if self.replanning_counter == 0 or self.config_planner.planning.replanning_frequency < 2:
+        if ((self.replanning_counter == 0 or self.config_planner.planning.replanning_frequency < 2) or
+                self.config.behavior.use_behavior_planner):
             predictions = ph.get_predictions(self.config, self._predictor, self.scenario, self.global_timestep,
                                              self.prediction_horizon)
         else:
