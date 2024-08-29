@@ -5,9 +5,13 @@ __maintainer__ = "Rainer Trauth"
 __email__ = "rainer.trauth@tum.de"
 __status__ = "Beta"
 
+# general imports
 import numpy as np
 import logging
 
+# commonroad imports
+
+# project imports
 import behavior_planner.utils.helper_functions as hf
 
 # get logger
@@ -44,17 +48,12 @@ class VelocityPlanner(object):
 
         # actions
         self._set_default_speed_limit()
+        self.VP_state.final_velocity_interval, self.VP_state.final_velocity_center = hf.goal_velocity_interval(
+            self.BM_state.planning_problem.goal.state_list,
+            BM_state.goal_index)
 
     def execute(self):
         """ Execute velocity planner each time step"""
-
-        self.VP_state.closest_preceding_vehicle, self.VP_state.dist_preceding_veh, self.VP_state.vel_preceding_veh =\
-            hf.get_closest_preceding_obstacle(predictions=self.BM_state.predictions,
-                                              lanelet_network=self.BM_state.scenario.lanelet_network,
-                                              coordinate_system=self.PP_state.cl_ref_coordinate_system,
-                                              lanelet_id=self.BM_state.current_lanelet_id,
-                                              ego_position_s=self.BM_state.ref_position_s,
-                                              ego_state=self.BM_state.ego_state)
 
         # calculate comfortable stopping distance
         self._calc_comfortable_stopping_distance()
@@ -72,6 +71,8 @@ class VelocityPlanner(object):
         # calculate goal velocity
         self._get_goal_velocity()
         self._set_desired_velocity()
+        # maybe recommend overtaking previous car if ego vehicle needs to slow down to follow previous car and
+        # previous car is driving 10 or more km/h slower than allowed
 
     def _set_desired_velocity(self):
         # clip velocity to maximal accelerating and braking values
@@ -87,12 +88,12 @@ class VelocityPlanner(object):
 
         # no strong acceleration while preparing lane changes
         # maybe no strong acceleration when changing to the right & no strong deceleration when changing to the left
-        if self.FSM_state.behavior_state_dynamic == 'PrepareLaneChangeLeft' \
-                or self.FSM_state.behavior_state_dynamic == 'PrepareLaneChangeRight':
-            if self.VP_state.desired_velocity > self.BM_state.ego_state.velocity * 1.05:
-                self.VP_state.desired_velocity = self.BM_state.ego_state.velocity * 1.05
-                behavior_message_logger.debug("BP no strong vehicle acceleration while lane change maneuvers, "
-                                              "recommended velocity is: " + str(self.VP_state.desired_velocity))
+        # if self.FSM_state.behavior_state_dynamic == 'PrepareLaneChangeLeft' \
+        #         or self.FSM_state.behavior_state_dynamic == 'PrepareLaneChangeRight':
+        #     if self.VP_state.desired_velocity > self.BM_state.ego_state.velocity * 1.05:
+        #         self.VP_state.desired_velocity = self.BM_state.ego_state.velocity * 1.05
+        #         behavior_message_logger.debug("BP no strong vehicle acceleration while lane change maneuvers, "
+        #                                       "recommended velocity is: " + str(self.VP_state.desired_velocity))
 
         # stopping for traffic light
         # if self.FSM_state.slowing_car_for_traffic_light:
@@ -163,8 +164,12 @@ class VelocityPlanner(object):
             self.VP_state.goal_velocity = None
             self.VP_state.velocity_mode = None
 
-    def _stop_distance(self, velocity, deceleration):
-        return abs((velocity ** 2) / (-2 * deceleration))
+        # aim towards the velocity of the final goal when stop points aims at it
+        if str(self.BM_state.stop_point_mode).endswith("final goal") and (
+                self.VP_state.TTC is None or self.BM_state.desired_velocity_stop_point < self.VP_state.TTC):
+            self.VP_state.goal_velocity = self.BM_state.desired_velocity_stop_point
+            self.VP_state.velocity_mode = 'final'
+
 
     def _calc_safety_distance(self):
         """
@@ -216,8 +221,8 @@ class VelocityPlanner(object):
         # calculate reaction and stopping distances
         ego_react_dist = v_ego * delta
         other_react_dist = v_other * delta
-        ego_stop_dist = self._stop_distance(v_ego, a_max_ego)
-        other_stop_dist = self._stop_distance(v_other, a_max_other)
+        ego_stop_dist = hf.stop_distance(v_ego, a_max_ego)
+        other_stop_dist = hf.stop_distance(v_other, a_max_other)
         self.VP_state.stop_dist_preceding_veh = abs(other_stop_dist)
 
         # set result values
@@ -278,7 +283,7 @@ class VelocityPlanner(object):
                           * self.BM_state.config.behavior.replanning_frequency)
         self.VP_state.comfortable_stopping_distance = (
                 ego_react_dist
-                + self._stop_distance(self.BM_state.ego_state.velocity,
+                + hf.stop_distance(self.BM_state.ego_state.velocity,
                                       self.BM_state.config.behavior.comfortable_deceleration_rate))
 
     def _set_default_speed_limit(self):

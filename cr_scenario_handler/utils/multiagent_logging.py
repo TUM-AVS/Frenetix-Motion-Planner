@@ -17,6 +17,7 @@ from omegaconf import DictConfig, ListConfig
 from cr_scenario_handler.utils.agent_status import AgentStatus, TIMEOUT
 from cr_scenario_handler.utils.configuration import Configuration
 
+from rich.logging import RichHandler
 
 class SimulationLogger:
     """
@@ -317,16 +318,18 @@ def logger_initialization(config: Configuration, log_path, logger = "Simulation_
     file_handler.setFormatter(log_formatter)
 
     # create stream handler (prints to stdout)
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setLevel(loglevel)
+    # (replaced by RichHandler)
+    # stream_handler = logging.StreamHandler(sys.stdout)
+    # stream_handler.setLevel(loglevel)
 
     # create stream formatter
-    stream_formatter = logging.Formatter("%(levelname)-8s [%(filename)s]: %(message)s")
-    stream_handler.setFormatter(stream_formatter)
+    # stream_formatter = logging.Formatter("%(levelname)-8s [%(filename)s]: %(message)s")
+    # stream_handler.setFormatter(stream_formatter)
 
     # add handlers
     msg_logger.addHandler(file_handler)
-    msg_logger.addHandler(stream_handler)
+    # msg_logger.addHandler(stream_handler)
+    msg_logger.addHandler(RichHandler())
     msg_logger.propagate = False
 
     return msg_logger

@@ -20,7 +20,7 @@ class ReactivePlannerState(KSState):
     * Extends KSState attributes by acceleration and yaw rate
     """
     def __repr__(self):
-        return f"(time_step={self.time_step}, position={self.position},steering_angle={self.steering_angle}, " \
+        return f"(time_step={self.time_step}, position={self.position}, steering_angle={self.steering_angle}, " \
                f"velocity={self.velocity}, orientation={self.orientation}, acceleration={self.acceleration}, " \
                f"yaw_rate = {self.yaw_rate})"
 

@@ -13,6 +13,7 @@ from typing import List
 
 # frenetix_motion_planner imports
 from frenetix_motion_planner.sampling_matrix import generate_sampling_matrix
+from frenetix_motion_planner.state import ReactivePlannerState
 
 from cr_scenario_handler.utils.utils_coordinate_system import CoordinateSystem
 from cr_scenario_handler.utils.visualization import visualize_scenario_and_pp
@@ -49,6 +50,8 @@ class ReactivePlannerCpp(Planner):
         self.coordinate_system_cpp: frenetix.CoordinateSystemWrapper
         self.trajectory_handler_set_constant_cost_functions()
         self.trajectory_handler_set_constant_feasibility_functions()
+
+        frenetix._frenetix.setup_logger(msg_logger)
 
     def set_predictions(self, predictions: dict):
         self.use_prediction = True
@@ -149,8 +152,7 @@ class ReactivePlannerCpp(Planner):
         if name in self.cost_weights.keys():
             self.handler.add_cost_function(
                 cf.CalculateCollisionProbabilityFast(name, self.cost_weights[name], self.predictionsForCpp,
-                                                     self.vehicle_params.length, self.vehicle_params.width,
-                                                     self.vehicle_params.wb_rear_axle))
+                                                     self.vehicle_params.length, self.vehicle_params.width, self.vehicle_params.wb_rear_axle))
 
         name = "distance_to_obstacles"
         if name in self.cost_weights.keys() and self.cost_weights[name] > 0:
@@ -192,8 +194,28 @@ class ReactivePlannerCpp(Planner):
         if self.logger:
             self.logger.sql_logger.write_reference_path(reference_path)
 
+    @staticmethod
+    def _convert_reactive_planner_state(x_0: ReactivePlannerState) -> frenetix.CartesianPlannerState:
+        return frenetix.CartesianPlannerState(x_0.position, x_0.orientation, x_0.velocity, x_0.acceleration, x_0.steering_angle)
+
     def _get_cartesian_state(self) -> frenetix.CartesianPlannerState:
-        return frenetix.CartesianPlannerState(self.x_0.position, self.x_0.orientation, self.x_0.velocity, self.x_0.acceleration, self.x_0.steering_angle)
+        return self._convert_reactive_planner_state(self.x_0)
+
+    def _get_planner_state(self) -> frenetix.PlannerState:
+        return frenetix.PlannerState(
+            self._get_cartesian_state(),
+            frenetix.CurvilinearPlannerState(np.array(self.x_cl[0]), np.array(self.x_cl[1])),
+            self.vehicle_params.wheelbase
+        )
+
+    def _compute_initial_states(self, x_0):
+        x_cl_new = frenetix.compute_initial_state(
+            coordinate_system=self.coordinate_system_cpp,
+            x_0=self._convert_reactive_planner_state(x_0),
+            wheelbase=self.vehicle_params.wheelbase,
+            low_velocity_mode=self._LOW_VEL_MODE
+        )
+        return (x_cl_new.x0_lon, x_cl_new.x0_lat)
 
     def _compute_standstill_trajectory(self) -> frenetix.TrajectorySample:
         """
@@ -201,13 +223,71 @@ class ReactivePlannerCpp(Planner):
         :return: The TrajectorySample for a standstill trajectory
         """
 
-        ps = frenetix.PlannerState(
-            self._get_cartesian_state(),
-            frenetix.CurvilinearPlannerState(self.x_cl[0], self.x_cl[1]),
-            self.vehicle_params.wheelbase
+        return frenetix.TrajectorySample.compute_standstill_trajectory(self.coordinate_system_cpp, self._get_planner_state(), self.dT, self.horizon)
+
+    def _generate_sampling_matrix(self, samp_level: int):
+        x_0_lon = self.x_cl[0]
+        x_0_lat = self.x_cl[1]
+
+        # *************************************
+        # Create & Evaluate Trajectories in Cpp
+        # *************************************
+        t1_range = np.array(list(self.sampling_handler.t_sampling.to_range(samp_level).union({self.N*self.dT})))
+        ss1_range = np.array(list(self.sampling_handler.v_sampling.to_range(samp_level).union({x_0_lon[1]})))
+        d1_range = np.array(list(self.sampling_handler.d_sampling.to_range(samp_level).union({x_0_lat[0]})))
+
+        sampling_matrix = generate_sampling_matrix(t0_range=0.0,
+                                                   t1_range=t1_range,
+                                                   s0_range=x_0_lon[0],
+                                                   ss0_range=x_0_lon[1],
+                                                   sss0_range=x_0_lon[2],
+                                                   ss1_range=ss1_range,
+                                                   sss1_range=0,
+                                                   d0_range=x_0_lat[0],
+                                                   dd0_range=x_0_lat[1],
+                                                   ddd0_range=x_0_lat[2],
+                                                   d1_range=d1_range,
+                                                   dd1_range=0.0,
+                                                   ddd1_range=0.0)
+
+        return sampling_matrix
+
+    def _generate_trajectories(self, samp_level: int):
+        self.handler.generate_trajectories(self._generate_sampling_matrix(samp_level), self._LOW_VEL_MODE)
+
+    def _generate_stopping_trajectories(self, samp_level: int):
+        x_0_lon = self.x_cl[0]
+
+        # NOTE: This check is also done in the frenetix module
+        # Replicated here for redundancy
+        if self.behavior.stop_point_s < x_0_lon[0]:
+            raise ValueError("stop point behind current longitudinal position")
+
+        d_delta = 0.4 # 75
+        d_delta_threshold = 5.0
+        ref_vel = (x_0_lon[1] + self.behavior.desired_velocity_stop_point) / 2.0
+        if ref_vel < d_delta_threshold:
+            d_delta = (x_0_lon[1] / d_delta_threshold) * d_delta
+            d_delta = max(d_delta, 0.01)
+
+        sampling_config = frenetix.SamplingConfiguration(
+            t_min=0.5,#self.sampling_handler.t_min,
+            t_max=10.0, # self.horizon,
+            dt=self.dT,
+            d_delta=d_delta, #self.config_plan.planning.d_max,
+            sampling_level=samp_level+2,
+            time_based_lateral_delta_scaling=True,
+            enforce_time_bounds=True,
+            strict_velocity_sampling=True
         )
 
-        return frenetix.TrajectorySample.compute_standstill_trajectory(self.coordinate_system_cpp, ps, self.dT, self.horizon)
+        self.handler.generate_stopping_trajectories(
+            self._get_planner_state(),
+            sampling_config,
+            self.behavior.stop_point_s,
+            self.behavior.desired_velocity_stop_point,
+            self._LOW_VEL_MODE
+        )
 
     def plan(self) -> tuple:
         """
@@ -221,28 +301,23 @@ class ReactivePlannerCpp(Planner):
         # Initialization of Cpp Frenet Functions
         # **************************************
         self.trajectory_handler_set_changing_functions()
-        x_0_lon = None
-        x_0_lat = None
+
+        # NOTE: This can probably be removed. Currently self.x_cl is always set prior to calling plan()
+        # self._update_curvilinear_state()
+
         if self.x_cl is None:
-            x_cl_new = frenetix.compute_initial_state(
-                coordinate_system=self.coordinate_system_cpp,
-                x_0=self._get_cartesian_state(),
-                wheelbase=self.vehicle_params.wheelbase,
-                low_velocity_mode=self._LOW_VEL_MODE
-            )
+            raise RuntimeError("x_cl should have been set prior to plan()")
 
-            x_0_lat = x_cl_new.x0_lat
-            x_0_lon = x_cl_new.x0_lon
-        else:
-            x_0_lat = self.x_cl[1]
-            x_0_lon = self.x_cl[0]
+        x_0_lon = self.x_cl[0]
+        x_0_lat = self.x_cl[1]
 
-        self.msg_logger.debug('Initial state is: lon = {} / lat = {}'.format(x_0_lon, x_0_lat))
-        self.msg_logger.debug('Desired velocity is {} m/s'.format(self.desired_velocity))
+        with np.printoptions(precision=3):
+            self.msg_logger.debug(f"Initial state is: lon = {np.array(x_0_lon)} / lat = {np.array(x_0_lat)}")
+
+        self.msg_logger.debug('Desired velocity is {:.2f} m/s'.format(self.desired_velocity))
 
         # Initialization of while loop
         optimal_trajectory = None
-        sampling_matrix = None
         feasible_trajectories = []
         infeasible_trajectories = []
         t0 = time.time()
@@ -252,30 +327,20 @@ class ReactivePlannerCpp(Planner):
 
         # sample until trajectory has been found or sampling sets are empty
         while optimal_trajectory is None and samp_level < self._sampling_max:
-
-            # *************************************
-            # Create & Evaluate Trajectories in Cpp
-            # *************************************
-            t1_range = np.array(list(self.sampling_handler.t_sampling.to_range(samp_level).union({self.N*self.dT})))
-            ss1_range = np.array(list(self.sampling_handler.v_sampling.to_range(samp_level).union({x_0_lon[1]})))
-            d1_range = np.array(list(self.sampling_handler.d_sampling.to_range(samp_level).union({x_0_lat[0]})))
-
-            sampling_matrix = generate_sampling_matrix(t0_range=0.0,
-                                                       t1_range=t1_range,
-                                                       s0_range=x_0_lon[0],
-                                                       ss0_range=x_0_lon[1],
-                                                       sss0_range=x_0_lon[2],
-                                                       ss1_range=ss1_range,
-                                                       sss1_range=0,
-                                                       d0_range=x_0_lat[0],
-                                                       dd0_range=x_0_lat[1],
-                                                       ddd0_range=x_0_lat[2],
-                                                       d1_range=d1_range,
-                                                       dd1_range=0.0,
-                                                       ddd1_range=0.0)
-
             self.handler.reset_Trajectories()
-            self.handler.generate_trajectories(sampling_matrix, self._LOW_VEL_MODE)
+
+            stopping_mode_threshold = 10.0
+            if self.behavior is not None and self.behavior.stop_point_s is not None and self.behavior.desired_velocity_stop_point < stopping_mode_threshold:
+                self.msg_logger.info(f"Using stop point from behavior planner: {self.behavior.stop_point_s:.2f} @ v={self.behavior.desired_velocity_stop_point:.2f} m/s")
+
+                try:
+                    self._generate_stopping_trajectories(samp_level)
+                except ValueError:
+                    # generate_stopping_trajectories (in frenetix) can raise ValueErrors when supplied with nonsensical parameters
+                    self.msg_logger.info("exception raised while trying to generate stopping trajectories, falling back to regular planning")
+                    self._generate_trajectories(samp_level)
+            else:
+                self._generate_trajectories(samp_level)
 
             if not self.config_plan.debug.multiproc or (self.config_sim.simulation.use_multiagent and
                                                         self.config_sim.simulation.multiprocessing):
@@ -301,7 +366,7 @@ class ReactivePlannerCpp(Planner):
             # print size of feasible trajectories and infeasible trajectories
             self.msg_logger.debug('Found {} feasible trajectories and {} infeasible trajectories'.format(feasible_trajectories.__len__(), infeasible_trajectories.__len__()))
             self.msg_logger.debug(
-                'Percentage of valid & feasible trajectories: %s %%' % str(self.infeasible_kinematics_percentage))
+                'Percentage of valid & feasible trajectories: {:.2f} %'.format(self.infeasible_kinematics_percentage))
 
             # ******************************************
             # Check Feasible Trajectories for Collisions
@@ -312,6 +377,9 @@ class ReactivePlannerCpp(Planner):
             samp_level += 1
 
         planning_time = time.time() - t0
+
+        if optimal_trajectory is not None:
+            self.msg_logger.info(f"select trajectory {optimal_trajectory.uniqueId}")
 
         self.transfer_infeasible_logging_information(infeasible_trajectories)
 
@@ -334,6 +402,7 @@ class ReactivePlannerCpp(Planner):
         # *******************************************
         if optimal_trajectory is None and feasible_trajectories:
             if self.config_plan.planning.emergency_mode == "stopping":
+                sampling_matrix = self._generate_sampling_matrix(min(samp_level, self._sampling_max - 1))
                 optimal_trajectory = self._select_stopping_trajectory(feasible_trajectories, sampling_matrix, x_0_lat[0])
                 self.msg_logger.warning("No optimal trajectory available. Select stopping trajectory!")
             else:

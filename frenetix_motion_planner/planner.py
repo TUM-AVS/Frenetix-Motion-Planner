@@ -145,7 +145,8 @@ class Planner:
         self.use_occ_model = False
         if config_plan.debug.activate_logging:
             self.logger = DataLoggingCosts(
-                config=self.config_plan,
+                config_plan=self.config_plan,
+                config_sim=self.config_sim,
                 scenario=scenario,
                 planning_problem=planning_problem,
                 path_logs=log_path,
@@ -300,13 +301,13 @@ class Planner:
         """
         self.desired_velocity = desired_velocity
 
-        min_v = max(0.001, current_speed - 0.5 * self.vehicle_params.a_max * self.horizon)
+        min_v = max(0.001, current_speed - self.vehicle_params.a_max * self.horizon)
         max_v = min(min(current_speed + (self.vehicle_params.a_max / 6.0) * self.horizon, v_limit),
                     self.vehicle_params.v_max)
 
         self.sampling_handler.set_v_sampling(min_v, max_v)
 
-        self.msg_logger.info('Sampled interval of velocity: {} m/s - {} m/s'.format(min_v, max_v))
+        self.msg_logger.info('Sampled interval of velocity: {:.2f} m/s - {:.2f} m/s'.format(min_v, max_v))
 
     def set_risk_costs(self, trajectory):
 
@@ -626,8 +627,10 @@ class Planner:
         x_0_lat: List[float] = [d, d_velocity, d_acceleration]
 
         self.msg_logger.debug(f'Initial state for planning is {x_0}')
-        self.msg_logger.debug(f'Initial x_0 lon = {x_0_lon}')
-        self.msg_logger.debug(f'Initial x_0 lat = {x_0_lat}')
+
+        with np.printoptions(precision=3, suppress=True):
+            self.msg_logger.debug(f'Initial x_0 lon = {np.array(x_0_lon)}')
+            self.msg_logger.debug(f'Initial x_0 lat = {np.array(x_0_lat)}')
 
         return x_0_lon, x_0_lat
 

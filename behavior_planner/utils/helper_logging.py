@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 
+from rich.logging import RichHandler
 
 class BehaviorLogger(object):
 
@@ -53,6 +54,7 @@ class BehaviorLogger(object):
                     "stop_point_s",
                     "stop_point_dist",
                     "desired_velocity_stop_point",
+                    "stop_point_mode",
                     "velocity",
                     "goal_velocity",
                     "desired_velocity",
@@ -162,9 +164,11 @@ class BehaviorLogger(object):
         file_handler.setFormatter(file_formatter)
 
         # create stream handler (prints to stdout)
-        stream_handler = logging.StreamHandler(sys.stdout)
-        stream_formatter = logging.Formatter("%(levelname)-8s [%(filename)s]: %(message)s")
-        stream_handler.setFormatter(stream_formatter)
+        # (replaced by RichHandler)
+        # stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler = RichHandler()
+        # stream_formatter = logging.Formatter("%(levelname)-8s [%(filename)s]: %(message)s")
+        # stream_handler.setFormatter(stream_formatter)
 
         # set logging levels
         self.message_logger.setLevel(

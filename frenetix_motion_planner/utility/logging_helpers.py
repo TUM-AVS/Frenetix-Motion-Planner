@@ -7,9 +7,10 @@ import logging
 import tempfile
 import sqlite3
 import math
+import typing
 
 from omegaconf import DictConfig, ListConfig
-from cr_scenario_handler.utils.configuration import Configuration
+from cr_scenario_handler.utils.configuration import Configuration, SimConfiguration, FrenetConfiguration
 
 from commonroad.common.util import FileFormat
 from commonroad.common.file_writer import CommonRoadFileWriter
@@ -27,18 +28,25 @@ class SqlLogger:
     inf_names: list[str]
 
     @staticmethod
-    def _convert_config(config: Configuration) -> dict:
+    def _convert_list_config(config: ListConfig) -> list:
+        data = []
+        for item in config:
+            data.append(item)
+        return data
+
+    @staticmethod
+    def _convert_dict_config(config: DictConfig) -> dict:
         data = dict()
         for item in config.__dict__:
+            if item.startswith("_"):
+                continue
             # print(item)
             ii = getattr(config, item)
             data[item] = dict()
             for it in ii.__dict__:
                 val = ii.__dict__[it]
-                if isinstance(val, DictConfig):
-                    val = dict(val)
-                if isinstance(val, ListConfig):
-                    val = list(val)
+                if isinstance(val, DictConfig) or isinstance(val, ListConfig):
+                    val = SqlLogger._convert_config(val)
 
                 # print(f"name={it} type={type(val)}")
 
@@ -46,7 +54,17 @@ class SqlLogger:
 
         return data
 
-    def __init__(self, path_logs: Path, config: Configuration, scenario: Scenario, planning_problem: PlanningProblem) -> None:
+    @staticmethod
+    def _convert_config(config: Configuration) -> typing.Union[dict, list]:
+        if isinstance(config, DictConfig) or hasattr(config, "__dict__"):
+            return SqlLogger._convert_dict_config(config)
+        elif isinstance(config, ListConfig):
+            return SqlLogger._convert_list_config(config)
+        else:
+            raise ValueError
+
+
+    def __init__(self, path_logs: Path, config_plan: FrenetConfiguration, config_sim: SimConfiguration, scenario: Scenario, planning_problem: PlanningProblem) -> None:
         self.path_logs = path_logs
 
         path_logs.mkdir(exist_ok=True)
@@ -73,6 +91,8 @@ class SqlLogger:
                 curvilinear_theta TEXT NOT NULL,
                 v TEXT NOT NULL,
                 a TEXT NOT NULL,
+                trajectory_long TEXT NOT NULL,
+                trajectory_lat TEXT NOT NULL,
                 PRIMARY KEY(time_step, id)
             ) STRICT
         """)
@@ -86,6 +106,9 @@ class SqlLogger:
                 d_position REAL NOT NULL,
                 ego_risk REAL,
                 obst_risk REAL,
+                collision_detected INT,
+                boundary_harm REAL,
+                horizon REAL NOT NULL,
                 PRIMARY KEY(time_step, id)
             ) STRICT
         """)
@@ -128,17 +151,22 @@ class SqlLogger:
 
             self.con.commit()
 
-        converted_config = SqlLogger._convert_config(config)
+        converted_config_plan = SqlLogger._convert_dict_config(config_plan)
+        json_config_plan = json.dumps(converted_config_plan, skipkeys=True)
+        self.con.execute("INSERT INTO meta VALUES(?, json(?))", ("config_plan", json_config_plan))
 
-        json_config = json.dumps(converted_config, skipkeys=True)
-        self.con.execute("INSERT INTO meta VALUES(?, json(?))", ("config", json_config))
+        converted_config_sim = SqlLogger._convert_dict_config(config_sim)
+        json_config_sim = json.dumps(converted_config_sim, skipkeys=True)
+        self.con.execute("INSERT INTO meta VALUES(?, json(?))", ("config_sim", json_config_sim))
+
 
         self.con.commit()
 
         self.set_inf_names([
             "Yaw_rate",
             "Acceleration",
-            "Curvature"
+            "Curvature",
+            "Curvature_Rate"
         ])
 
     def write_reference_path(self, reference_path) -> None:
@@ -153,7 +181,7 @@ class SqlLogger:
 
         inf_columns = ""
         for inf_name in self.inf_names:
-            inf_columns += f"{inf_name} INT NOT NULL, \n"
+            inf_columns += f"inf_{inf_name.lower()} INT NOT NULL, \n"
 
         self.con.execute(f"""
             CREATE TABLE infeasability(
@@ -183,7 +211,7 @@ class SqlLogger:
         """)
 
     @staticmethod
-    def _trajectories_row(time_step: int, trajectory) -> tuple[int, str, str, str, str, str, str, str, str]:
+    def _trajectories_row(time_step: int, trajectory) -> tuple[int, str, str, str, str, str, str, str, str, str, str]:
         def float_values(values):
             value_list = ','.join(map(lambda x: "{:.5g}".format(x), values))
             return "[" + value_list + "]"
@@ -197,7 +225,9 @@ class SqlLogger:
             float_values(trajectory.cartesian.kappa),
             float_values(trajectory.curvilinear.theta),
             float_values(trajectory.cartesian.v),
-            float_values(trajectory.cartesian.a)
+            float_values(trajectory.cartesian.a),
+            float_values(trajectory.curvilinear.s),
+            float_values(trajectory.curvilinear.d)
             )
 
     @staticmethod
@@ -210,6 +240,9 @@ class SqlLogger:
             trajectory.curvilinear.d[0],
             trajectory._ego_risk,
             trajectory._obst_risk,
+            trajectory._coll_detected,
+            trajectory.boundary_harm,
+            trajectory.sampling_parameters[1],
             )
 
     @staticmethod
@@ -252,8 +285,8 @@ class SqlLogger:
             cost_data.append(self._costs_row(time_step, trajectory))
             inf_data.append(self._infeasability_row(time_step, trajectory))
 
-        self.con.executemany("INSERT INTO trajectories VALUES(?, ?, json(?), json(?), json(?), json(?), json(?), json(?), json(?))", trajectory_data)
-        self.con.executemany(f"INSERT INTO trajectories_meta VALUES(?, ?, {','.join(5 * '?')})", meta_data)
+        self.con.executemany("INSERT INTO trajectories VALUES(?, ?, json(?), json(?), json(?), json(?), json(?), json(?), json(?), json(?), json(?))", trajectory_data)
+        self.con.executemany(f"INSERT INTO trajectories_meta VALUES(?, ?, {','.join(8 * '?')})", meta_data)
         self.con.executemany(f"INSERT INTO sampling_params VALUES(?, ?, {','.join(13 * '?')})", sampling_data)
         self.con.executemany(f"INSERT INTO costs VALUES(?, ?, ?, {','.join(len(self.cost_names) * '?')})", cost_data)
         self.con.executemany(f"INSERT INTO infeasability VALUES(?, ?, ?, {','.join(len(self.inf_names) * '?')})", inf_data)
@@ -265,7 +298,7 @@ class DataLoggingCosts:
     # ----------------------------------------------------------------------------------------------------------
     # CONSTRUCTOR ----------------------------------------------------------------------------------------------
     # ----------------------------------------------------------------------------------------------------------
-    def __init__(self, path_logs: str, config, scenario: Scenario, planning_problem: PlanningProblem,
+    def __init__(self, path_logs: str, config_plan: FrenetConfiguration, config_sim: SimConfiguration, scenario: Scenario, planning_problem: PlanningProblem,
                  header_only: bool = False, save_all_traj: bool = False, cost_params: dict = None) -> None:
         """"""
 
@@ -275,7 +308,7 @@ class DataLoggingCosts:
         self.trajectories_header = None
         self.prediction_header = None
         self.collision_header = None
-        self.save_unweighted_costs = config.debug.save_unweighted_costs
+        self.save_unweighted_costs = config_plan.debug.save_unweighted_costs
 
         self.path_logs = path_logs
         self._cost_list_length = None
@@ -303,9 +336,9 @@ class DataLoggingCosts:
         Path(os.path.dirname(self.__log_path)).mkdir(
             parents=True, exist_ok=True)
 
-        self.sql_logger = SqlLogger(Path(path_logs), config, scenario, planning_problem)
+        self.sql_logger = SqlLogger(Path(path_logs), config_plan, config_sim, scenario, planning_problem)
 
-        self.set_logging_header(cost_params, config)
+        self.set_logging_header(cost_params, config_plan)
 
     # ----------------------------------------------------------------------------------------------------------
     # CLASS METHODS --------------------------------------------------------------------------------------------
@@ -348,6 +381,8 @@ class DataLoggingCosts:
             "velocities_mps;"
             "desired_velocity_mps;"
             "accelerations_mps2;"
+            "trajectory_long;"
+            "trajectory_lat;"
             "s_position_m;"
             "d_position_m;"
             "ego_risk;"
@@ -447,6 +482,8 @@ class DataLoggingCosts:
             new_line += ";" + json.dumps(str(','.join(map(str, cartesian.v[replanning_counter:]))), default=default)
             new_line += ";" + json.dumps(str(desired_velocity), default=default)
             new_line += ";" + json.dumps(str(','.join(map(str, cartesian.a[replanning_counter:]))), default=default)
+            new_line += ";" + json.dumps(str(','.join(map(str, trajectory.curvilinear.s))), default=default)
+            new_line += ";" + json.dumps(str(','.join(map(str, trajectory.curvilinear.d))), default=default)
 
             # # log frenet coordinates (distance to reference path)
             new_line += ";" + \

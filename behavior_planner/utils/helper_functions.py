@@ -7,26 +7,33 @@ __status__ = "Beta"
 
 # general imports
 import numpy as np
+import os
 import copy
 import typing
+
+from matplotlib import pyplot as plt
+from matplotlib.patches import Polygon as MlpPolygon
 from shapely.geometry import Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon, GeometryCollection
 
 # commonroad imports
+from commonroad.common.util import Interval
 from commonroad.geometry.shape import Rectangle
+from commonroad.planning.planning_problem import PlanningProblem
 from commonroad.scenario.traffic_sign_interpreter import TrafficSignInterpreter
 from commonroad.scenario.lanelet import LaneletType
 from commonroad.scenario.traffic_sign import SupportedTrafficSignCountry
 from commonroad.scenario.scenario import Scenario, Tag
+from commonroad.visualization.mp_renderer import MPRenderer
 
 from commonroad_route_planner.route_planner import RoutePlanner
+if typing.TYPE_CHECKING:
+    from commonroad_route_planner.route import Route
+    from commonroad_route_planner.route_generator import RouteGenerator
 from commonroad_dc.geometry.util import resample_polyline
 
 from cr_scenario_handler.utils.utils_coordinate_system import smooth_ref_path
 
 # project imports
-if typing.TYPE_CHECKING:
-    from commonroad_route_planner.route import Route
-    from commonroad_route_planner.route_generator import RouteGenerator
 
 
 def get_remaining_path(ego_state, ref_path):
@@ -122,6 +129,10 @@ def angle_of_vector(vector):
     return angle_rad if vector[1] >= 0 else -angle_rad
 
 
+def stop_distance(velocity, deceleration):
+    return abs((velocity ** 2) / (-2 * deceleration))
+
+
 def get_lanelet_information(scenario, reference_path_ids, ego_state, country: SupportedTrafficSignCountry):
     """Get the current lanelet id, the legal speed limit and the street setting from the CommonRoad scenario
 
@@ -154,24 +165,24 @@ def get_lanelet_information(scenario, reference_path_ids, ego_state, country: Su
         print("no lanelets detected")
 
     # check for street setting
-    tags = scenario.tags
-    if Tag('interstate') in tags:
+    lanelet_type = scenario.lanelet_network.find_lanelet_by_id(current_lanelet).lanelet_type
+    if LaneletType('highway') in lanelet_type:
         street_setting = 'Highway'
-    elif Tag('highway') in tags:
+    elif LaneletType('interstate') in lanelet_type:
         street_setting = 'Highway'
-    # elif Tag('country') in tags:  # Tag('country') doesn't exist
-    #     street_setting = 'Country'
-    elif Tag('urban') in tags:
+    elif LaneletType('country') in lanelet_type:
+        street_setting = 'Country'
+    elif LaneletType('urban') in lanelet_type:
         street_setting = 'Urban'
     else:
-        lanelet_type = scenario.lanelet_network.find_lanelet_by_id(current_lanelet).lanelet_type
-        if LaneletType('highway') in lanelet_type:
+        tags = scenario.tags
+        if Tag('interstate') in tags:
             street_setting = 'Highway'
-        elif LaneletType('interstate') in lanelet_type:
+        elif Tag('highway') in tags:
             street_setting = 'Highway'
-        elif LaneletType('country') in lanelet_type:
-            street_setting = 'Country'
-        elif LaneletType('urban') in lanelet_type:
+        # elif Tag('country') in tags:  # Tag('country') doesn't exist
+        #     street_setting = 'Country'
+        elif Tag('urban') in tags:
             street_setting = 'Urban'
         else:  # default is urban
             street_setting = 'Urban'
@@ -229,13 +240,17 @@ def find_country_traffic_sign_id(scenario):
         return None
 
 
-def get_closest_preceding_obstacle(predictions, lanelet_network, coordinate_system, lanelet_id, ego_position_s,
-                                   ego_state):
-    obstacles_on_lanelet = get_predicted_obstacles_on_lanelet(predictions, lanelet_network, lanelet_id,
+def get_closest_preceding_obstacle(predictions, scenario, coordinate_system, lanelet_id, ego_position_s,
+                                   ego_state, ego_id):
+    obstacles_on_lanelet = get_predicted_obstacles_on_lanelet(predictions, scenario.lanelet_network, lanelet_id,
                                                               search_by_shape=False)
     closest_obstacle = None
+    closest_obstacle_id = None
     closest_obstacle_pos_s = None
     for obstacle_id in obstacles_on_lanelet:
+        if obstacle_id is ego_id:
+            continue
+
         obstacle = obstacles_on_lanelet.get(obstacle_id)
         obstacle_position_xy = obstacle.get('pos_list')[0]
         try:
@@ -248,10 +263,12 @@ def get_closest_preceding_obstacle(predictions, lanelet_network, coordinate_syst
         if obstacle_position_s > ego_position_s:
             if closest_obstacle is None:
                 closest_obstacle = obstacle
+                closest_obstacle_id = obstacle_id
                 closest_obstacle_pos_s = obstacle_position_s
             else:
                 if obstacle_position_s < closest_obstacle_pos_s:
                     closest_obstacle = obstacle
+                    closest_obstacle_id = obstacle_id
                     closest_obstacle_pos_s = obstacle_position_s
 
     if closest_obstacle is not None:
@@ -263,7 +280,35 @@ def get_closest_preceding_obstacle(predictions, lanelet_network, coordinate_syst
         dist_preceding_veh = None
         vel_preceding_veh = None
 
-    return closest_obstacle, dist_preceding_veh, vel_preceding_veh
+    # return closest_obstacle, closest_obstacle.get('pos_list')[0], dist_preceding_veh, vel_preceding_veh
+
+    # receiving current obstacle state via scenario and not via the predictions, comment out if not wanted
+    if closest_obstacle is None:
+        return closest_obstacle, None, dist_preceding_veh, vel_preceding_veh
+
+    # prec_veh_pos = closest_obstacle.get('pos_list')[0]
+    # prec_veh_radius = max(closest_obstacle.get('shape').get('length'),
+    #                       closest_obstacle.get('shape').get('width')) / 2
+    # x_interval = Interval(prec_veh_pos[0] - prec_veh_radius, prec_veh_pos[0] + prec_veh_radius)
+    # y_interval = Interval(prec_veh_pos[1] - prec_veh_radius, prec_veh_pos[1] + prec_veh_radius)
+    # closest_obstacle = scenario.obstacles_by_position_intervals([x_interval, y_interval])[0]
+    # try:
+    #     obstacle_position_s = coordinate_system.convert_to_curvilinear_coords(
+    #         closest_obstacle.prediction.trajectory.state_list[ego_state.time_step].position[0],
+    #         closest_obstacle.prediction.trajectory.state_list[ego_state.time_step].position[1])[0]
+    # except:
+    #     print("VP object out of projection domain. Object position: ",
+    #           closest_obstacle.prediction.trajectory.state_list[ego_state.time_step].position)
+
+    closest_obstacle = scenario.obstacle_by_id(closest_obstacle_id)
+    closest_obstacle_pos = closest_obstacle.prediction.trajectory.state_list[ego_state.time_step].position
+
+    # distance to rear end of vehicle
+    dist_preceding_veh = (distance(ego_state.position, closest_obstacle.prediction.trajectory.state_list[ego_state.time_step].position)
+                          - (closest_obstacle.obstacle_shape.length / 2))
+    vel_preceding_veh = closest_obstacle.prediction.trajectory.state_list[ego_state.time_step].velocity
+
+    return closest_obstacle, closest_obstacle_pos, dist_preceding_veh, vel_preceding_veh
 
 
 def get_predicted_obstacles_on_lanelet(predictions, lanelet_network, lanelet_id, search_point=None,
@@ -579,6 +624,8 @@ def extend_points(points, step_size=0.125, ext_front=30.0, ext_back=30.0, endpoi
                 coordinates.extend(get_coordinates(geom))
         return coordinates
 
+    # TODO check if the reference path is not just intersecting with the a part of the reference path but with the
+    #  projection domain of the reference path
     # test if path intersects itself
     front_extension_line = LineString([points[0], points_unextended[0]])
     back_extension_line = LineString([points[-1], points_unextended[-1]])
@@ -626,3 +673,182 @@ def extend_points(points, step_size=0.125, ext_front=30.0, ext_back=30.0, endpoi
                              endpoint_avg_dist, dist_to_inter)
 
     return points
+
+
+def visualize_static_route(scenario: Scenario,
+                           planning_problem: PlanningProblem = None,
+                           static_route: [] = None,
+                           save_path=None,
+                           cosy=None,
+                           size=None, pos=None,):
+    """Visualizes scenario, planning problem and (optionally) the reference path"""
+    plot_limits = None
+    ref_path = None
+    if cosy is not None:
+        try:
+            ref_path = cosy.reference
+        except:
+            ref_path = np.array(cosy.reference_path())
+        # x_min = np.min(ref_path[:, 0]) - 150
+        # x_max = np.max(ref_path[:, 0]) + 150
+        # y_min = np.min(ref_path[:, 1]) - 150
+        # y_max = np.max(ref_path[:, 1]) + 150
+        # plot_limits = [x_min, x_max, y_min, y_max]
+        plot_limits = None
+
+    if size is not None:
+        plot_limits = [-size[0] / 2 + pos[0], size[0] / 2 + pos[0],
+                       -size[1] / 2 + pos[1], size[1] / 2 + pos[1]]
+
+    rnd = MPRenderer(figsize=(20, 10), plot_limits=plot_limits)
+    rnd.draw_params.time_begin = 0
+    rnd.draw_params.traffic_light.draw_traffic_lights = False
+    rnd.draw_params.traffic_sign.draw_traffic_signs = False
+    scenario.draw(rnd)
+
+    if planning_problem is not None:
+        planning_problem.draw(rnd)
+    rnd.render()
+    if ref_path is not None:
+        rnd.ax.plot(ref_path[:, 0], ref_path[:, 1], color='g', marker='.', markersize=1, zorder=20,
+                    linewidth=0.8, label='reference path')
+        if hasattr(cosy, "ccosy"):
+            proj_domain_border = np.array(cosy.ccosy.projection_domain())
+        else:
+            proj_domain_border = np.array(cosy.projection_domain())
+        rnd.ax.plot(proj_domain_border[:, 0], proj_domain_border[:, 1], color="orange", linewidth=0.8)
+
+    title = "Static Route:\n"
+    colors = ["#7F7F7F", "#64A0C8", "#0065BD"]
+    for idx, vertices in enumerate(static_goals_as_polygons(static_route, cosy)):
+        if static_route[idx].goal_type.__contains__("Default"):
+            title += f"{static_route[idx].goal_type},\n"
+            color = 0
+        elif static_route[idx].goal_type.__contains__("Prepare"):
+            title += f"{static_route[idx].goal_type}, "
+            color = 1
+        else:
+            title += f"{static_route[idx].goal_type},\n"
+            color = 2
+        rnd.ax.add_patch(MlpPolygon(
+            vertices,
+            closed=True,
+            facecolor=colors[color],
+            edgecolor="black",
+            zorder=25,
+            alpha=0.75,
+            linewidth=0.5,
+            antialiased=True,
+        ))
+
+    plt.title(title[:-2])
+
+    if save_path is not None:
+        plt.savefig(os.path.join(save_path, "static_route.svg"), format='svg', bbox_inches='tight')
+    else:
+        plt.show()
+
+
+def static_goals_as_polygons(static_goals, cosy, width=1.5):
+    static_goals_polygons = []
+    for sg in static_goals:
+        left_side = []
+        right_side = []
+        for p in [sg.start_s + p for p in range(int(sg.end_s - sg.start_s))] + [sg.end_s]:
+            try:
+                left_side.append(cosy.convert_to_cartesian_coords(p, width).tolist())
+                right_side.append(cosy.convert_to_cartesian_coords(p, -width).tolist())
+            except AttributeError:
+                # try to get a point in the first meter
+                # if that is not possible the reference path might intersect with the projection domain
+                step_size = 100
+                i = 0
+                for i in range(step_size):
+                    p = i / step_size
+                    if cosy.convert_to_cartesian_coords(p, width) is not None:
+                        try:
+                            left_side.append(cosy.convert_to_cartesian_coords(p, width).tolist())
+                            right_side.append(cosy.convert_to_cartesian_coords(p, -width).tolist())
+                            break
+                        except AttributeError:
+                            raise AttributeError(f"HF static goal {sg.goal_type} is too close (<{width}m) to end of projection domain")
+                if i >= step_size - 1:
+                    raise AttributeError(f"HF static goal {sg.goal_type} is too close (<{width}m) to end of projection domain")
+        single_polygon = [sg.start_xy]
+        single_polygon += left_side
+        single_polygon += [sg.end_xy]
+        single_polygon += right_side[::-1]
+        single_polygon += [sg.start_xy]
+        static_goals_polygons += [single_polygon]
+
+    return static_goals_polygons
+
+
+def calculate_goal_s_position_interval(reference_path, goal_positions, cosy):
+    # also determine goal index, so that later the velocity planner knows which goal to choose
+    goal_interval = None
+    goal_center = None
+    goal_index = None
+    for point in reference_path:
+        for idx, goal_position in enumerate(goal_positions):
+            if hasattr(goal_position, "position") and goal_position.position.contains_point(point):
+                try:
+                    point_s = cosy.convert_to_curvilinear_coords(point[0], point[1]).tolist()[0]
+                except AttributeError:
+                    # behavior_message_logger.error(f"PP reference path point {point} is out of projection domain.")
+                    continue
+                if goal_interval is None:
+                    goal_interval = Interval(point_s, point_s)
+                    goal_index = idx
+                else:
+                    goal_interval.end = point_s
+    if goal_interval is not None:
+        goal_center = (goal_interval.start + goal_interval.end) / 2
+    return goal_interval, goal_center, goal_index
+
+
+def goal_velocity_interval(goals, index):
+    goal_interval = None
+    goal_center = None
+    if index is not None:
+        if hasattr(goals[index], "velocity"):
+            goal_interval = goals[index].velocity
+            goal_center = max((goal_interval.start + goal_interval.end) / 2, 0.0)
+            goal_interval.start = max(goal_interval.start, 0.0)
+    return goal_interval, goal_center
+
+
+def calculate_stop_distance_and_velocity_to_final_goal(BM_state):
+    final_s_position = None
+    final_velocity = None
+    velocity_adapt_s_position = None
+
+    if BM_state.PP_state.final_s_position_interval is not None:
+        final_s_position = max(BM_state.PP_state.final_s_position_interval.end - BM_state.vehicle_params.length / 2,
+                               BM_state.PP_state.final_s_position_interval.start)
+
+    if BM_state.VP_state.final_velocity_center is not None:
+        final_velocity = BM_state.VP_state.final_velocity_center
+
+        deceleration_dist = (stop_distance(BM_state.ego_state.velocity,
+                             BM_state.config.behavior.comfortable_deceleration_rate) -
+                             stop_distance(final_velocity, BM_state.config.behavior.comfortable_deceleration_rate))
+        if BM_state.PP_state.final_s_position_interval is not None:
+            # take goal position as reference for final velocity adaption
+            if BM_state.PP_state.final_s_position_interval.contains(BM_state.ref_position_s):
+                velocity_adapt_s_position = BM_state.ref_position_s
+            else:
+                velocity_adapt_s_position = max((BM_state.PP_state.final_s_position_interval.start - deceleration_dist),
+                                                BM_state.ref_position_s)
+        else:
+            # take goal time step position as reference for final velocity adaption
+            if BM_state.planning_problem.goal.state_list[BM_state.goal_index].time_step.contains(BM_state.ego_state.time_step):
+                velocity_adapt_s_position = BM_state.ref_position_s
+            else:
+                # assume linear deceleration
+                deceleration_time = deceleration_dist / ((BM_state.ego_state.velocity + final_velocity) / 2)
+                velocity_adapt_s_position = BM_state.ref_position_s + max(
+                    BM_state.planning_problem.goal.state_list[BM_state.goal_index].time_step.start -
+                    deceleration_time - BM_state.ego_state.time_step, 0) * BM_state.ego_state.velocity
+
+    return final_s_position, final_velocity, velocity_adapt_s_position

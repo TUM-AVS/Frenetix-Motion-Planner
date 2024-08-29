@@ -67,6 +67,7 @@ def visualize_agent_at_timestep(scenario: Scenario, planning_problem: PlanningPr
     :param visible_area: Visible Area for plotting (optional)
     :param occlusion_map: Occlusion map information to plot (optional)
     will visualize on the existing object)
+    :param behavior_module_state: state of the behavior module as dict (optional)
     :param save_path: Path to save plot as .png (optional)
     """
     # Only create renderer if not passed in
@@ -195,9 +196,16 @@ def visualize_agent_at_timestep(scenario: Scenario, planning_problem: PlanningPr
                     f"velocity: {behavior_module_state.get('velocity'):.2f}\n"
                 )
             if config.behavior.visualization_mode in ["FULL"]:
+                if behavior_module_state.get('TTC') is None:
+                    ttc_str = f"None"
+                else:
+                    ttc_str = f"{behavior_module_state.get('TTC'):.2f}"
                 behavior_text_left += (
-                    f"TTC: {behavior_module_state.get('TTC'):.2f}\n"
+                    f"TTC: {ttc_str}\n"
                     f"MAX: {behavior_module_state.get('MAX'):.2f}\n"
+                    f"stop_point_dist: {behavior_module_state.get('stop_point_dist'):.2f}\n"
+                    f"desired_velocity_stop_point: {behavior_module_state.get('desired_velocity_stop_point'):.2f}\n"
+                    f"stop_point_mode: {str(behavior_module_state.get('stop_point_mode'))}\n"
                     f"lane_change_target_lanelet_id: {str(behavior_module_state.get('lane_change_target_lanelet_id'))}\n"
                     f"slowing_car_for_traffic_light: {str(behavior_module_state.get('slowing_car_for_traffic_light'))}\n"
                     f"waiting_for_green_light: {str(behavior_module_state.get('waiting_for_green_light'))}\n"

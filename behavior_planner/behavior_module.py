@@ -30,7 +30,7 @@ class BehaviorModule(object):
     TODO: Include FSM
     """
 
-    def __init__(self, scenario, planning_problem, init_ego_state, config, log_path):
+    def __init__(self, scenario, planning_problem, init_ego_state, ego_id, config, log_path):
         """ Init Behavior Module.
 
         Args:
@@ -61,6 +61,7 @@ class BehaviorModule(object):
         self.BM_state.vehicle_params = config.vehicle
         self.BM_state.init_velocity = init_ego_state.velocity
         self.BM_state.dt = config.behavior.dt
+        self.BM_state.ego_id = ego_id
 
         self.BM_state.scenario = scenario
         self.BM_state.planning_problem = planning_problem
@@ -175,7 +176,7 @@ class BehaviorModule(object):
         self.behavior_message_logger.debug("VP TTC velocity: " + str(self.VP_state.TTC))
         self.behavior_message_logger.debug("VP MAX velocity: " + str(self.VP_state.MAX))
         if self.VP_state.closest_preceding_vehicle is not None:
-            self.behavior_message_logger.debug("VP position of preceding vehicle: " + str(self.VP_state.closest_preceding_vehicle.get('pos_list')[0]))
+            self.behavior_message_logger.debug("VP position of preceding vehicle: " + str(self.VP_state.pos_preceding_veh))
             self.behavior_message_logger.debug("VP velocity of preceding vehicle: " + str(self.VP_state.vel_preceding_veh))
             self.behavior_message_logger.debug("VP distance to preceding vehicle: " + str(self.VP_state.dist_preceding_veh))
             self.behavior_message_logger.debug("VP safety distance to preceding vehicle: " + str(self.VP_state.safety_dist))
@@ -219,6 +220,15 @@ class BehaviorModule(object):
         self.BM_state.current_lanelet = \
             self.BM_state.scenario.lanelet_network.find_lanelet_by_id(self.BM_state.current_lanelet_id)
 
+        self.VP_state.closest_preceding_vehicle, self.VP_state.pos_preceding_veh, self.VP_state.dist_preceding_veh, self.VP_state.vel_preceding_veh =\
+            hf.get_closest_preceding_obstacle(predictions=self.BM_state.predictions,
+                                              scenario=self.BM_state.scenario,
+                                              coordinate_system=self.PP_state.cl_ref_coordinate_system,
+                                              lanelet_id=self.BM_state.current_lanelet_id,
+                                              ego_position_s=self.BM_state.ref_position_s,
+                                              ego_state=self.BM_state.ego_state,
+                                              ego_id=self.BM_state.ego_id)
+
     def _calculate_stopping_point(self):
         """
         Calculates the point up to which the reactive planner should plan
@@ -226,118 +236,175 @@ class BehaviorModule(object):
         1. The position relative to the reference path (S-position)
         2. The desired velocity at that point
         \n
+        If there is a static goal with a stopping point is scheduled, plan to the static goal s_stopping_position and
+        aim to have no velocity there. If there is no stop planned choose the maximal distance the current_velocity *
+        default_time_horizon, the comfortable_stopping_distance and eventually the stop_point_s of the current static
+        goal.
         If a preceding vehicle exists plan to the point, where the preceding vehicle would come to a standstill in case
-        of a breaking scenario and aim to have the same velocity as the preceding vehicle or when stopping for a static
-        goal, aim to be at a standstill at the static goal s_stopping_position.
-        If there is no preceding vehicle and a static goal with a stopping point is scheduled, plan to the static goal
-        s_stopping_position and aim to have no velocity there. If there is no stop planned choose the maximal distance
-        the current_velocity * default_time_horizon, the comfortable_stopping_distance and eventually the stop_point_s
-        of the current static goal
+        of a breaking scenario and aim to have the same velocity as the preceding vehicle or come to a standstill behind
+        the preceding vehicle.
         """
-        # self.stop_point = {
-        #     "position_s": None,
-        #     "velocity": None
-        # }
         comfort_stopping_point_s = self.BM_state.ref_position_s + self.VP_state.comfortable_stopping_distance
-        if self.VP_state.TTC is not None:
-            # car in front of ego vehicle
-            ttc_stopping_stop_point_s = (self.BM_state.ref_position_s
-                                         + self.VP_state.dist_preceding_veh
-                                         + self.VP_state.stop_dist_preceding_veh
-                                         - self.VP_state.min_safety_dist)
-            if self.FSM_state.behavior_state_static in ["TrafficLight", "Crosswalk", "StopSign", "YieldSign"]:
-                if self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state.startswith("Waiting"):
-                    # Don't move: WaitingForGreenLight, WaitingForCrosswalkClearance,
-                    # WaitingForStopYieldSignClearance, WaitingForTurnClearance
-                    self.BM_state.stop_point_s = self.BM_state.ref_position_s
-                    self.BM_state.desired_velocity_stop_point = 0.0
-                elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state == "Stopping":
-                    # set stop point to nearest from static goal or detected vehicle
-                    if ttc_stopping_stop_point_s >= self.BM_state.current_static_goal.stop_point_s:
-                        # aim to stop at the stop point of the traffic light, crosswalk or traffic sign
-                        self.BM_state.stop_point_s = min(self.BM_state.current_static_goal.stop_point_s,
-                                                         comfort_stopping_point_s)
-                        self.BM_state.desired_velocity_stop_point = 0.0
-                    else:
-                        # car in front of ego vehicle, stop behind the car in front
-                        self.BM_state.stop_point_s = min(ttc_stopping_stop_point_s, comfort_stopping_point_s)
-                        # don't accelerate during stopping
-                        self.BM_state.desired_velocity_stop_point = min(self.VP_state.vel_preceding_veh,
-                                                                        self.BM_state.desired_velocity_stop_point)
-                else:
-                    # use TTC as measure for stopping point calculation
-                    self.BM_state.stop_point_s = min(ttc_stopping_stop_point_s, comfort_stopping_point_s)
-                    self.BM_state.desired_velocity_stop_point = self.VP_state.vel_preceding_veh
-            else:
-                # use TTC as measure for stopping point calculation
-                self.BM_state.stop_point_s = min(ttc_stopping_stop_point_s, comfort_stopping_point_s)
-                self.BM_state.desired_velocity_stop_point = self.VP_state.vel_preceding_veh
-        else:
-            # no car in front of ego vehicle
-            default_time_stopping_point_s = (self.BM_state.ref_position_s
-                                             + self.BM_state.ego_state.velocity
-                                             * self.behavior_config.default_time_horizon)
-            if self.FSM_state.behavior_state_static in ["PrepareTrafficLight", "TrafficLight",
-                                                        "PrepareCrosswalk", "Crosswalk",
-                                                        "PrepareYieldSign", "YieldSign",
-                                                        "PrepareStopSign", "StopSign"]:
-                # Situation States of 'Prepare' behavior states
-                if self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state.startswith("Observing"):
-                    # ObservingTrafficLight, ObservingCrosswalk, ObservingStopYieldSign
-                    self.BM_state.stop_point_s = min(self.BM_state.current_static_goal.stop_point_s,
-                                                     comfort_stopping_point_s)
-                    self.BM_state.desired_velocity_stop_point = self.VP_state.goal_velocity
-                elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state == "SlowingDown":
-                    self.BM_state.stop_point_s = min(self.BM_state.current_static_goal.stop_point_s,
-                                                     comfort_stopping_point_s)
-                    self.BM_state.desired_velocity_stop_point = 0.0
-                # Situation States of behavior states
-                elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state == "GreenLight":
-                    self.BM_state.stop_point_s = max(
-                        self.BM_state.current_static_goal.stop_point_s,
-                        comfort_stopping_point_s,
-                        default_time_stopping_point_s
-                    )
-                    self.BM_state.desired_velocity_stop_point = self.VP_state.goal_velocity
-                elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state.endswith("Clear"):
-                    # CrosswalkClear, StopYieldSignClear, TurnClear
-                    self.BM_state.stop_point_s = max(
-                        self.BM_state.current_static_goal.stop_point_s,
-                        comfort_stopping_point_s,
-                        default_time_stopping_point_s
-                    )
-                    self.BM_state.desired_velocity_stop_point = self.VP_state.goal_velocity
-                elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state == "Stopping":
-                    self.BM_state.stop_point_s = min(self.BM_state.current_static_goal.stop_point_s,
-                                                     comfort_stopping_point_s)
-                    self.BM_state.desired_velocity_stop_point = 0.0
-                elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state.startswith("Waiting"):
-                    # Don't move: WaitingForGreenLight, WaitingForCrosswalkClearance,
-                    # WaitingForStopYieldSignClearance, WaitingForTurnClearance
-                    self.BM_state.stop_point_s = self.BM_state.ref_position_s
-                    self.BM_state.desired_velocity_stop_point = 0.0
-                elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state == "ContinueDriving":
-                    self.BM_state.stop_point_s = max(
-                        comfort_stopping_point_s,
-                        default_time_stopping_point_s
-                    )
-                    self.BM_state.desired_velocity_stop_point = self.VP_state.goal_velocity
-                else:
-                    self.behavior_message_logger.warning(
-                        f"'{self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state}'"
-                        f" is not a valid Situation State for {self.FSM_state.behavior_state_static}")
-            else:
+        stop_point_min_dist = max(self.behavior_config.min_stop_point_dist,
+                                  self.behavior_config.min_stop_point_time * self.BM_state.ego_state.velocity)
+
+        ####################################################################################################
+        #                          Calculating Stop Point from Static Goal Route                           #
+        ####################################################################################################
+        # calculating the stopping position if the car continues driving with the same velocity for the set duration
+        default_time_stopping_point_s = (self.BM_state.ref_position_s
+                                         + self.BM_state.ego_state.velocity
+                                         * self.behavior_config.default_time_horizon)
+        if self.FSM_state.behavior_state_static in ["PrepareTrafficLight", "TrafficLight",
+                                                    "PrepareCrosswalk", "Crosswalk",
+                                                    "PrepareYieldSign", "YieldSign",
+                                                    "PrepareStopSign", "StopSign"]:
+            # Situation States of 'Prepare' behavior states
+            if self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state.startswith("Observing"):
+                # ObservingTrafficLight, ObservingCrosswalk, ObservingStopYieldSign
+                self.BM_state.stop_point_s = min(self.BM_state.current_static_goal.stop_point_s,
+                                                 comfort_stopping_point_s)
+                self.BM_state.desired_velocity_stop_point = self.VP_state.goal_velocity
+            elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state == "SlowingDown":
+                self.BM_state.stop_point_s = min(self.BM_state.current_static_goal.stop_point_s,
+                                                 comfort_stopping_point_s)
+                self.BM_state.desired_velocity_stop_point = 0.0
+            # Situation States of behavior states
+            elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state == "GreenLight":
+                self.BM_state.stop_point_s = max(
+                    self.BM_state.current_static_goal.stop_point_s,
+                    comfort_stopping_point_s,
+                    default_time_stopping_point_s
+                )
+                self.BM_state.desired_velocity_stop_point = self.VP_state.goal_velocity
+            elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state.endswith("Clear"):
+                # CrosswalkClear, StopYieldSignClear, TurnClear
+                self.BM_state.stop_point_s = max(
+                    self.BM_state.current_static_goal.stop_point_s,
+                    comfort_stopping_point_s,
+                    default_time_stopping_point_s
+                )
+                self.BM_state.desired_velocity_stop_point = self.VP_state.goal_velocity
+            elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state == "Stopping":
+                self.BM_state.stop_point_s = min(self.BM_state.current_static_goal.stop_point_s,
+                                                 comfort_stopping_point_s)
+                self.BM_state.desired_velocity_stop_point = 0.0
+            elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state.startswith("Waiting"):
+                # Don't move: WaitingForGreenLight, WaitingForCrosswalkClearance,
+                # WaitingForStopYieldSignClearance, WaitingForTurnClearance
+                self.BM_state.stop_point_s = self.BM_state.ref_position_s
+                self.BM_state.desired_velocity_stop_point = 0.0
+                self.BM_state.stop_point_dist = self.BM_state.stop_point_s - self.BM_state.ref_position_s
+                self.BM_state.stop_point_mode = "s-pos: current position | vel: 0"
+                return  # special case where minimal distance is not wanted
+            elif self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state == "ContinueDriving":
                 self.BM_state.stop_point_s = max(
                     comfort_stopping_point_s,
                     default_time_stopping_point_s
                 )
                 self.BM_state.desired_velocity_stop_point = self.VP_state.goal_velocity
+            else:
+                self.behavior_message_logger.warning(
+                    f"'{self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state}'"
+                    f" is not a valid Situation State for {self.FSM_state.behavior_state_static}")
+        else:
+            self.BM_state.stop_point_s = max(
+                comfort_stopping_point_s,
+                default_time_stopping_point_s
+            )
+            self.BM_state.desired_velocity_stop_point = self.VP_state.goal_velocity
+
+        ####################################################################################################
+        #                                 Calculating Stop Point from TTC                                  #
+        ####################################################################################################
+        ttc_stopping_stop_point_s = None
+        if self.VP_state.TTC is not None:
+            # calculate the stopping position so that is lies just safely behind the preceding vehicle
+            ttc_stopping_stop_point_s = (self.BM_state.ref_position_s
+                                         + self.VP_state.dist_preceding_veh
+                                         + self.VP_state.stop_dist_preceding_veh
+                                         - self.VP_state.min_safety_dist)
+            if self.VP_state.vel_preceding_veh < self.behavior_config.standing_obstacle_vel:
+                # calculate the closest point to come to a stop behind preceding vehicle
+                stop_point_preceding_veh = (self.BM_state.ref_position_s
+                                            + self.VP_state.dist_preceding_veh
+                                            - self.BM_state.vehicle_params.length / 2
+                                            - 0.5)
+                self.BM_state.stop_point_s = min(comfort_stopping_point_s, stop_point_preceding_veh)
+                self.BM_state.desired_velocity_stop_point = 0.0
+                self.BM_state.stop_point_dist = self.BM_state.stop_point_s - self.BM_state.ref_position_s
+                self.BM_state.stop_point_mode = "s-pos: preceding vehicle | vel: 0"
+                return  # special case where minimal distance is not wanted
+            elif (self.FSM_state.behavior_state_static in ["TrafficLight", "Crosswalk", "StopSign", "YieldSign"] and
+                    self.ego_FSM.FSM_street_setting.cur_state.FSM_static.cur_state.cur_state == "Stopping" and
+                    ttc_stopping_stop_point_s < self.BM_state.current_static_goal.stop_point_s):
+                # car in front of ego vehicle, stop behind the car in front
+                self.BM_state.stop_point_s = min(ttc_stopping_stop_point_s, comfort_stopping_point_s)
+                # don't accelerate during stopping
+                self.BM_state.desired_velocity_stop_point = min(self.VP_state.vel_preceding_veh,
+                                                                self.BM_state.ego_state.velocity)
+            else:
+                # use TTC as measure for stopping point calculation
+                self.BM_state.stop_point_s = min(ttc_stopping_stop_point_s, comfort_stopping_point_s)
+                self.BM_state.desired_velocity_stop_point = self.VP_state.vel_preceding_veh
+
+        # make sure to not overshoot the desired position with nose of the car
         self.BM_state.stop_point_s -= self.BM_state.vehicle_params.length / 2
         # make sure minimal stop_point distance margins are met
-        stop_point_min_dist = max(self.behavior_config.min_stop_point_dist,
-                                  self.behavior_config.min_stop_point_time * self.BM_state.ego_state.velocity)
         self.BM_state.stop_point_s = max(self.BM_state.ref_position_s + stop_point_min_dist,
-                                         self.BM_state.stop_point_s)
+                                         self.BM_state.stop_point_s, 0)
+
+        ####################################################################################################
+        #                              Calculating Stop Point from Final Goal                              #
+        ####################################################################################################
+        final_s_position, final_velocity, velocity_adapt_s_position = (
+            hf.calculate_stop_distance_and_velocity_to_final_goal(self.BM_state))
+        if final_s_position is not None:
+            self.BM_state.stop_point_s = min(final_s_position, self.BM_state.stop_point_s)
+        approx_s_pos_next_planning_cycle = (self.BM_state.ref_position_s + (
+            self.BM_state.ego_state.velocity * self.BM_state.dt * self.BM_state.config.behavior.replanning_frequency))
+        if final_velocity is not None and velocity_adapt_s_position <= approx_s_pos_next_planning_cycle:
+            self.BM_state.desired_velocity_stop_point = final_velocity
+
+        # determine stop point mode
+        self.BM_state.stop_point_mode = "s-pos: "
+        stop_positions = [
+            (None if self.BM_state.current_static_goal.stop_point_s is None else
+             self.BM_state.current_static_goal.stop_point_s - self.BM_state.vehicle_params.length / 2),
+            (None if final_s_position is None else
+             final_s_position - self.BM_state.vehicle_params.length / 2),
+            (None if ttc_stopping_stop_point_s is None else
+             ttc_stopping_stop_point_s - self.BM_state.vehicle_params.length / 2),
+            self.BM_state.ref_position_s + stop_point_min_dist,
+            comfort_stopping_point_s - self.BM_state.vehicle_params.length / 2,
+            default_time_stopping_point_s - self.BM_state.vehicle_params.length / 2
+        ]
+        stop_positions_names = [
+            "static goal",
+            "final goal",
+            "TTC",
+            "minimal distance",
+            "comfortable",
+            "default time"
+        ]
+        closest_dist = stop_positions[-1]
+        closest_idx = len(stop_positions) - 1
+        for idx, s_pos in enumerate(stop_positions):
+            if s_pos is not None and abs(self.BM_state.stop_point_s - s_pos) < closest_dist:
+                closest_dist = abs(self.BM_state.stop_point_s - s_pos)
+                closest_idx = idx
+        self.BM_state.stop_point_mode += f"{stop_positions_names[closest_idx]} | vel: "
+        if self.BM_state.desired_velocity_stop_point == 0.0:
+            self.BM_state.stop_point_mode += "0"
+        elif self.BM_state.desired_velocity_stop_point == final_velocity:
+            self.BM_state.stop_point_mode += "final goal"
+        elif self.BM_state.desired_velocity_stop_point == self.VP_state.vel_preceding_veh:
+            self.BM_state.stop_point_mode += "preceding vehicle"
+        elif self.BM_state.desired_velocity_stop_point == self.VP_state.goal_velocity:
+            self.BM_state.stop_point_mode += "goal velocity"
+        else:
+            self.BM_state.stop_point_mode += "unknown"
+
         self.BM_state.stop_point_dist = self.BM_state.stop_point_s - self.BM_state.ref_position_s
 
 
@@ -350,6 +417,7 @@ class BehaviorModuleState(object):
         self.country = None
         self.scenario = None
         self.planning_problem = None
+        self.goal_index = None
         self.priority_right = None
         self.plan_dynamics_only = None
 
@@ -358,6 +426,7 @@ class BehaviorModuleState(object):
         self.predictions = None
         self.time_step = None
         self.dt = None
+        self.ego_id = None
 
         # FSM and Velocity Planner information
         self.FSM_state = FSMState()
@@ -386,6 +455,7 @@ class BehaviorModuleState(object):
         self.stop_point_s = None
         self.stop_point_dist = None
         self.desired_velocity_stop_point = None
+        self.stop_point_mode = None
 
 
 class FSMState(object):
@@ -439,6 +509,7 @@ class FSMState(object):
         self.turn_clear = None
         self.crosswalk_clear = None
         self.stop_yield_sign_clear = None
+        self.intersection_clear = None
 
         # action flags
         self.do_lane_change = None
@@ -465,6 +536,8 @@ class VelocityPlannerState(object):
 
         # general
         self.ttc_norm = 8
+        self.final_velocity_interval = None
+        self.final_velocity_center = None
         self.speed_limit_default = None
         self.TTC = None
         self.MAX = None
@@ -472,6 +545,7 @@ class VelocityPlannerState(object):
 
         # TTC velocity
         self.closest_preceding_vehicle = None
+        self.pos_preceding_veh = None
         self.dist_preceding_veh = None
         self.vel_preceding_veh = None
         self.ttc_conditioned = None
@@ -500,6 +574,8 @@ class PathPlannerState(object):
         self.reference_path = None
         self.reference_path_ids = None
         self.cl_ref_coordinate_system = None
+        self.final_s_position_interval = None
+        self.final_s_position_center = None
 
 
 class BehaviorPlannerState(object):
@@ -539,6 +615,11 @@ class BehaviorPlannerState(object):
         # self.reference_path = None  # list of tuples of floats  # just passed separately
         self.reference_path_ids = None  # list of strings
 
+        # Stop Points
+        self.stop_point_dist = None
+        self.desired_velocity_stop_point = None
+        self.stop_point_mode = None
+
     def set_values(self, BM_state):
         """sets all values of this class, so that BM_state will not be part of the dict of this class, and returns a deepcopy"""
 
@@ -571,6 +652,11 @@ class BehaviorPlannerState(object):
         # Path Planner
         # self.reference_path = BM_state.PP_state.reference_path  # list of tuples of floats  # passed separately
         self.reference_path_ids = BM_state.PP_state.reference_path_ids  # list of strings
+
+        # Stop Points
+        self.stop_point_dist = BM_state.stop_point_dist
+        self.desired_velocity_stop_point = BM_state.desired_velocity_stop_point
+        self.stop_point_mode = BM_state.stop_point_mode
 
         return copy.deepcopy(self.__dict__)
 

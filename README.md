@@ -179,25 +179,31 @@ If you use this repository for any academic work, please cite our code:
 - [Analytical Planner Paper](https://arxiv.org/abs/2402.01443)
 
 ```bibtex
-@misc{frenetix2024,
-      title={Frenetix Motion Planner: High-Performance and Modular Trajectory Planning Algorithm for Complex Autonomous Driving Scenarios},
-      author={Korbinian Moller and Rainer Trauth and Gerald Wuersching and Johannes Betz},
-      year={2024},
-      eprint={2402.01443},
-      archivePrefix={arXiv},
-      primaryClass={cs.RO}
-}
+@ARTICLE{Frenetix,
+  author={Trauth, Rainer and Moller, Korbinian and Würsching, Gerald and Betz, Johannes},
+  journal={IEEE Access}, 
+  title={FRENETIX: A High-Performance and Modular Motion Planning Framework for Autonomous Driving}, 
+  year={2024},
+  volume={},
+  number={},
+  pages={1-1},
+  doi={10.1109/ACCESS.2024.3436835}
+  }
+
 ```
 - [Multi-agent Simulation Framework](https://arxiv.org/abs/2402.04720)
 ```bibtex
-@misc{multiagent2024,
-      title={Investigating Driving Interactions: A Robust Multi-Agent Simulation Framework for Autonomous Vehicles},
-      author={Marc Kaufeld and Rainer Trauth and Johannes Betz},
-      year={2024},
-      eprint={2402.04720},
-      archivePrefix={arXiv},
-      primaryClass={cs.RO}
+@INPROCEEDINGS{multiagent2024,
+  author={Kaufeld, Marc and Trauth, Rainer and Betz, Johannes},
+  booktitle={2024 IEEE Intelligent Vehicles Symposium (IV)}, 
+  title={Investigating Driving Interactions: A Robust Multi-Agent Simulation Framework for Autonomous Vehicles}, 
+  year={2024},
+  volume={},
+  number={},
+  pages={803-810},
+  doi={10.1109/IV55156.2024.10588423}
 }
+
 ```
 - [Occlusion-aware Planning](https://ieeexplore.ieee.org/abstract/document/10328654)
 ```bibtex
@@ -209,8 +215,8 @@ If you use this repository for any academic work, please cite our code:
   volume={4},
   number={},
   pages={929-942},
-  keywords={Autonomous vehicles;Trajectory planning;Pedestrians;Vehicle dynamics;Behavioral sciences;Roads;Collision avoidance;Autonomous vehicles;collision avoidance;trajectory planning;vehicle safety},
-  doi={10.1109/OJITS.2023.3336464}}
+  doi={10.1109/OJITS.2023.3336464}
+  }
 ```
 
 </details>

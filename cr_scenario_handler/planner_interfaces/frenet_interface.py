@@ -116,12 +116,13 @@ class FrenetPlannerInterface(PlannerInterface):
         else:
             config_sim.behavior.dt = config_planner.planning.dt
             config_sim.behavior.replanning_frequency = config_planner.planning.replanning_frequency
-            self.behavior_modul = BehaviorModule(scenario=scenario,
-                                                 planning_problem=planning_problem,
-                                                 init_ego_state=x_0,
-                                                 config=config_sim,
-                                                 log_path=self.log_path)
-            self.reference_path = self.behavior_modul.reference_path
+            self.behavior_module = BehaviorModule(scenario=scenario,
+                                                  planning_problem=planning_problem,
+                                                  init_ego_state=x_0,
+                                                  ego_id=agent_id,
+                                                  config=config_sim,
+                                                  log_path=self.log_path)
+            self.reference_path = self.behavior_module.reference_path
 
         self.goal_area = gc.get_goal_area_shape_group(planning_problem=planning_problem, scenario=scenario)
 
@@ -129,8 +130,8 @@ class FrenetPlannerInterface(PlannerInterface):
         # Initialize Occlusion Module GO to: https://github.com/TUM-AVS/Frenetix-Occlusion
         # ********************************************************************************
         # if self.config_sim.occlusion.use_occlusion_module:
-        #     self.occlusion_module = FOInterface(scenario, self.reference_path, self.config_sim.vehicle, self.DT,
-        #                             os.path.join(self.mod_path, "configurations", "simulation", "occlusion.yaml"))
+        #   self.occlusion_module = FOInterface(scenario, self.reference_path, self.config_sim.vehicle, self.DT,
+        #                            os.path.join(self.mod_path, "configurations", "simulation", "occlusion.yaml"))
 
         # **************************
         # Set External Planner Setups
@@ -189,13 +190,16 @@ class FrenetPlannerInterface(PlannerInterface):
             self.desired_velocity = self.velocity_planner.calculate_desired_velocity(self.x_0, self.x_cl[0][0])
         else:
             # raise NotImplementedError
-            behavior = self.behavior_modul.execute(
+            behavior = self.behavior_module.execute(
                 predictions=predictions,
                 ego_state=self.x_0,
                 time_step=self.replanning_counter)
             self.desired_velocity = behavior.desired_velocity
             if behavior.reference_path is not None:
                 self.reference_path = behavior.reference_path
+
+            self.planner.update_externals(behavior=behavior)
+
             # self.stop_point_s = behavior.stop_point_s
             # self.desired_velocity_stop_point = behavior.desired_velocity_stop_point
             self.behavior_module_state = behavior.behavior_planner_state

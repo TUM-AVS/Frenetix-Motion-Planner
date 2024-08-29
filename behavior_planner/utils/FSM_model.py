@@ -116,12 +116,12 @@ class Country(State):
         self.FSM_static = SimpleFSM(
             possible_states={
                 'StaticDefault': StaticDefault(),
-                'PrepareIntersection': PrepareIntersection(),
+                'PrepareIntersection': PrepareIntersection(BM_state=BM_state),
                 'PrepareTurnLeft': PrepareTurnLeft(BM_state=BM_state),
                 'PrepareTurnRight': PrepareTurnRight(BM_state=BM_state),
                 'PrepareLaneMerge': PrepareLaneMerge(BM_state=BM_state),
                 'PrepareTrafficLight': PrepareTrafficLight(BM_state=BM_state),
-                'Intersection': Intersection(),
+                'Intersection': Intersection(BM_state=BM_state),
                 'TurnLeft': TurnLeft(BM_state=BM_state),
                 'TurnRight': TurnRight(BM_state=BM_state),
                 'LaneMerge': LaneMerge(BM_state=BM_state),
@@ -204,7 +204,7 @@ class Urban(State):
         self.FSM_static = SimpleFSM(
             possible_states={
                 'StaticDefault': StaticDefault(),
-                'PrepareIntersection': PrepareIntersection(),
+                'PrepareIntersection': PrepareIntersection(BM_state=BM_state),
                 'PrepareTurnLeft': PrepareTurnLeft(BM_state=BM_state),
                 'PrepareTurnRight': PrepareTurnRight(BM_state=BM_state),
                 'PrepareLaneMerge': PrepareLaneMerge(BM_state=BM_state),
@@ -212,7 +212,7 @@ class Urban(State):
                 'PrepareCrosswalk': PrepareCrosswalk(BM_state=BM_state),
                 'PrepareStopSign': PrepareStopSign(BM_state=BM_state),
                 'PrepareYieldSign': PrepareYieldSign(BM_state=BM_state),
-                'Intersection': Intersection(),
+                'Intersection': Intersection(BM_state=BM_state),
                 'TurnLeft': TurnLeft(BM_state=BM_state),
                 'TurnRight': TurnRight(BM_state=BM_state),
                 'LaneMerge': LaneMerge(BM_state=BM_state),
@@ -647,7 +647,7 @@ class LaneMerge(State):
                 'toEgoVehicleBetweenTwoLanes': Transition('EgoVehicleBetweenTwoLanes'),
                 'toBehaviorStateComplete': Transition('BehaviorStateComplete')},
             default_state='InitiateLaneMerge')
-        self.logic = Logic.LogicLaneMerge(start_state='InitiateLaneMerge')
+        self.logic = Logic.LogicLaneMerge(start_state='InitiateLaneMerge', BM_state=self.BM_state)
         self.cur_state = 'InitiateLaneMerge'
 
     def execute(self):
@@ -741,6 +741,20 @@ class RoadExit(State):
 
 class PrepareIntersection(State):
     # TODO implement class PrepareIntersection
+    def __init__(self, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.FSM_situation = SimpleFSM(
+            possible_states={
+                'ObservingIntersection': ObservingIntersection(BM_state=self.BM_state),
+                'SlowingDown': SlowingDown(BM_state=self.BM_state)},
+            possible_transitions={
+                'toObservingIntersection': Transition('ObservingIntersection'),
+                'toSlowingDown': Transition('SlowingDown')},
+            default_state='ObservingIntersection')
+        self.logic = Logic.LogicPrepareIntersection(start_state='ObservingIntersection', BM_state=BM_state)
+        self.cur_state = 'ObservingIntersection'
+
     def execute(self):
         bhv_logger.debug("FSM Behavior State: Preparing for Intersection")
         pass
@@ -751,6 +765,30 @@ class PrepareIntersection(State):
 
 class Intersection(State):
     # TODO implement class Intersection
+    def __init__(self, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+
+        if self.FSM_state.intersection_clear == True:
+            self.init_state = 'IntersectionClear'
+        else:
+            self.init_state = 'Stopping'
+
+        self.FSM_situation = SimpleFSM(
+            possible_states={
+                'IntersectionClear': IntersectionClear(BM_state=self.BM_state),
+                'Stopping': Stopping(BM_state=self.BM_state),
+                'WaitingForIntersectionClearance': WaitingForIntersectionClearance(BM_state=self.BM_state),
+                'ContinueDriving': ContinueDriving(BM_state=self.BM_state)},
+            possible_transitions={
+                'toIntersectionClear': Transition('IntersectionClear'),
+                'toStopping': Transition('Stopping'),
+                'toWaitingForIntersectionClearance': Transition('WaitingForIntersectionClearance'),
+                'toContinueDriving': Transition('ContinueDriving')},
+            default_state=self.init_state)
+        self.logic = Logic.LogicIntersection(start_state=self.init_state, BM_state=self.BM_state)
+        self.cur_state = self.init_state
+
     def execute(self):
         bhv_logger.debug("FSM Behavior State: Intersection")
 
@@ -1002,13 +1040,11 @@ class FinishOvertake(State):
             possible_states={
                 'IdentifyTargetLaneAndVehiclesOnTargetLane': IdentifyTargetLaneAndVehiclesOnTargetLane(BM_state),
                 'IdentifySpeedOfObstaclesOnTargetLane': IdentifySpeedOfObstaclesOnTargetLane(BM_state),
-                'OvertakeAgain': OvertakeAgain(BM_state),  # maybot not needen, insted just setting a flag
                 'IdentifyFreeSpaceOnTargetLaneForLaneMerge': IdentifyFreeSpaceOnTargetLaneForLaneMerge(BM_state),
                 'PreparationsDone': PreparationsDone()},
             possible_transitions={
                 'toIdentifyTargetLaneAndVehiclesOnTargetLane': Transition('IdentifyTargetLaneAndVehiclesOnTargetLane'),
                 'toIdentifySpeedOfObstaclesOnTargetLane': Transition('IdentifySpeedOfObstaclesOnTargetLane'),
-                'toOvertakeAgain': Transition('OvertakeAgain'),
                 'toIdentifyFreeSpaceOnTargetLaneForLaneMerge': Transition('IdentifyFreeSpaceOnTargetLaneForLaneMerge'),
                 'toPreparationsDone': Transition('PreparationsDone')},
             default_state='IdentifyTargetLaneAndVehiclesOnTargetLane')
@@ -1591,6 +1627,33 @@ class InitiateRoadExit(State):
         bhv_logger.debug("FSM Situation State: Preparations Done")
 
 
+class ObservingIntersection(State):
+    def __init__(self, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+
+    def execute(self):
+        bhv_logger.debug("FSM Situation State: Observing Intersection")
+
+
+class IntersectionClear(State):
+    def __init__(self, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+
+    def execute(self):
+        bhv_logger.debug("FSM Situation State: Intersection Clear")
+
+
+class WaitingForIntersectionClearance(State):
+    def __init__(self, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+
+    def execute(self):
+        bhv_logger.debug("FSM Situation State: Waiting for Intersection Clearance")
+
+
 class TurnClear(State):
     def __init__(self, BM_state):
         self.BM_state = BM_state
@@ -1619,16 +1682,6 @@ class AbortOvertake(State):
     def execute(self):
         # TODO: implementation exec Aborting Overtake
         bhv_logger.debug("FSM Situation State: Aborting Overtake")
-
-
-class OvertakeAgain(State):
-    def __init__(self, BM_state):
-        self.BM_state = BM_state
-        self.FSM_state = BM_state.FSM_state
-
-    def execute(self):
-        # TODO: implementation exec Overtake again
-        bhv_logger.debug("FSM Situation State: Overtake again")
 
 
 class Overtaking(State):
@@ -1676,11 +1729,11 @@ class SlowingDown(State):
         # check for other stopping cars in front of vehicle
         if self.VP_state.dist_preceding_veh is not None:
             if self.VP_state.dist_preceding_veh - self.BM_state.vehicle_params.length - \
-                    self.VP_state.closest_preceding_vehicle.get('shape').get('length') \
+                    self.VP_state.closest_preceding_vehicle.obstacle_shape.length \
                     <= self.VP_state.dist_to_tl:
                 self.VP_state.stop_distance = self.VP_state.dist_preceding_veh - \
                                               self.BM_state.vehicle_params.length - \
-                                              self.VP_state.closest_preceding_vehicle.get('shape').get('length')
+                                              self.VP_state.closest_preceding_vehicle.obstacle_shape.length
         bhv_logger.debug("FSM distance to stopping line is: ", self.VP_state.dist_to_tl)
 
 
@@ -1710,11 +1763,11 @@ class Stopping(State):
         # check for other stopping cars in front of vehicle
         if self.VP_state.dist_preceding_veh is not None:
             if self.VP_state.dist_preceding_veh - self.BM_state.vehicle_params.length - \
-                    self.VP_state.closest_preceding_vehicle.get('shape').get('length') \
+                    self.VP_state.closest_preceding_vehicle.obstacle_shape.length \
                     <= self.VP_state.dist_to_tl:
                 self.VP_state.stop_distance = self.VP_state.dist_preceding_veh - \
                                               self.BM_state.vehicle_params.length - \
-                                              self.VP_state.closest_preceding_vehicle.get('shape').get('length')
+                                              self.VP_state.closest_preceding_vehicle.obstacle_shape.length
 
         bhv_logger.debug("FSM distance to stopping line is: ", self.VP_state.dist_to_tl)
 

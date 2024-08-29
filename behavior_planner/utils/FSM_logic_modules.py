@@ -5,6 +5,8 @@ __maintainer__ = "Rainer Trauth"
 __email__ = "rainer.trauth@tum.de"
 __status__ = "Beta"
 
+from commonroad.geometry.shape import Rectangle
+
 """Logic Modules for the FSM Machines"""
 
 from random import randint
@@ -583,9 +585,10 @@ class LogicPrepareLaneMerge:
 class LogicLaneMerge:
     """logic module for state LaneMerge."""
 
-    def __init__(self, start_state):
+    def __init__(self, start_state, BM_state):
         self.cur_state = start_state
         self.transition = None
+        self.BM_state = BM_state
 
     def execute(self, cur_state):
         """call function to execute logic module for LaneMerge
@@ -596,13 +599,24 @@ class LogicLaneMerge:
         self.cur_state = cur_state
         self.transition = None
 
+        occupied_lanelets = self.BM_state.scenario.lanelet_network.find_lanelet_by_shape(Rectangle(
+            self.BM_state.vehicle_params.length,
+            self.BM_state.vehicle_params.width,
+            self.BM_state.ego_state.position,
+            self.BM_state.ego_state.orientation))
+
         if self.cur_state == 'InitiateLaneMerge':
-            if randint(0, 2):
+            all_predecessors_contained = True
+            for lanelet in occupied_lanelets:
+                if lanelet not in self.BM_state.scenario.lanelet_network.find_lanelet_by_id(
+                        self.BM_state.current_static_goal.goal_lanelet_id).predecessor:
+                    all_predecessors_contained = False
+                    break
+            if all_predecessors_contained:
                 self.transition = 'toEgoVehicleBetweenTwoLanes'
                 self.cur_state = 'EgoVehicleBetweenTwoLanes'
-
         elif self.cur_state == 'EgoVehicleBetweenTwoLanes':
-            if randint(0, 2):
+            if self.BM_state.current_static_goal.goal_lanelet_id in occupied_lanelets:
                 self.transition = 'toBehaviorStateComplete'
                 self.cur_state = 'BehaviorStateComplete'
 
@@ -671,6 +685,52 @@ class LogicRoadExit:
                 self.cur_state = 'BehaviorStateComplete'
 
         return self.transition, self.cur_state
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicPrepareIntersection:
+    """logic module for state PrepareIntersection."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for PrepareIntersection
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # TODO: implementation exec Prepare Intersection
+
+        return None
+
+    def reset_state(self, state):
+        self.cur_state = state
+
+
+class LogicIntersection:
+    """logic module for state Intersection."""
+
+    def __init__(self, start_state, BM_state):
+        self.BM_state = BM_state
+        self.FSM_state = BM_state.FSM_state
+        self.cur_state = start_state
+        self.transition = None
+
+    def execute(self, cur_state):
+        """call function to execute logic module for Intersection
+
+        Returns:
+             string: state to transition to or None if no change is required
+        """
+        # TODO: implementation exec Intersection
+
+        return None
 
     def reset_state(self, state):
         self.cur_state = state

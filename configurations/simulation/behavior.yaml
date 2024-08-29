@@ -1,5 +1,5 @@
 # Use Behavior Planner
-use_behavior_planner: False  # WARNING: This is a Beta Version
+use_behavior_planner: False  # WARNING: Currently works only without multiagent!
 
 # general configs
 dt: 0.1  # s, length of a simulation time step
@@ -7,6 +7,7 @@ replanning_frequency: 3  # time steps, should be set by Planner Interface during
 
 # path_planner configs
 dist_between_points: 0.125  # m
+stepwise_lane_changes: True  # Insert stepwise lane changes into the initial reference path
 preparation_time: 3  # s, time of a static preparation state
 goal_time: 2  # s, time of a static goal state
 distance_self_intersection: 10 # m, shorten extension of ref path by this if self intersecting
@@ -22,6 +23,7 @@ zero_velocity_threshold: 0.278  # m/s, slower desired velocities are set to 0
 default_time_horizon: 2  # s
 min_stop_point_dist: 1.4  # m, minimal distance of the stop_point ahead of current position
 min_stop_point_time: 1  # s, minimal distance relative to the velocity of the stop_point ahead of current position
+standing_obstacle_vel: 1  # m/s, when predicted obstacle is slower, then stop_point is set behind the obstacle with a velocity of 0
 
 # Behavior Logging
 behavior_log_mode_file: DEBUG  # Options: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -30,5 +32,6 @@ archive_previous_logs: False
 minimal_logging: False
 
 # Behavior Visualization
+visualize_static_route: True  # creates an image of the current scenario with the static route along the reference path
 visualize_states: True  # adds static and dynamic behavior and situation states to the visualization
-visualization_mode: EXTENDED  # Options: SLIM, BASIC, EXTENDED, FULL
+visualization_mode: FULL  # Options: SLIM, BASIC, EXTENDED, FULL
